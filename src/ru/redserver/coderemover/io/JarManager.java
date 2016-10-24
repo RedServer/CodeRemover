@@ -52,7 +52,7 @@ public class JarManager {
 		return classCollection;
 	}
 
-	public static boolean writeClasssesToJar(File jar, ClassCollection classCollection) throws IOException, CannotCompileException {
+	public static void writeClasssesToJar(File jar, ClassCollection classCollection) throws IOException, CannotCompileException {
 
 		Set<String> dirs = new HashSet<>();
 		try (JarOutputStream jarOutputStream = new JarOutputStream(new FileOutputStream(jar))) {
@@ -87,8 +87,6 @@ public class JarManager {
 
 			jarOutputStream.flush();
 		}
-
-		return false;
 	}
 
 	private static void addDirectories(String filePath, Set<String> dirs) {

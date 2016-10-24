@@ -13,7 +13,7 @@ import static ru.redserver.coderemover.CodeRemover.DEEP_LOG;
 import static ru.redserver.coderemover.CodeRemover.LOG;
 
 /**
- * Ищет аннотации и создаёт
+ * Ищет аннотации и создаёт список изменений в классе, а так же применяет их
  * @author Nuclear
  */
 public class AnnotationProccessor {
@@ -36,16 +36,6 @@ public class AnnotationProccessor {
 					}
 				}
 			}
-
-			// Ищем по родительским полям
-//			List<CtField> fields = Arrays.asList(clazz.getDeclaredFields());
-//			for(String superField : superClassChange.getFields()) {
-//				for(CtField field : fields) {
-//					if(superField.equals(field.getName())) {
-//						classChangeList.getFields().add(superField);
-//					}
-//				}
-//			}
 		}
 
 		// Проверяем класс
