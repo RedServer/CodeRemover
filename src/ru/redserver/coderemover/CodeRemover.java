@@ -33,6 +33,9 @@ public class CodeRemover {
 	public static final boolean DEEP_LOG = false;
 
 	public void run(String args[]) {
+		Timer timer = new Timer();
+		int loggerConfigureTime = 0, readTime = 0, searchTime = 0, applyTime = 0, writeTime = 0;
+
 		// Настраиваем Logger
 		try {
 			Formatter formatter = new Formatter() {
@@ -66,6 +69,7 @@ public class CodeRemover {
 		} catch (IOException e) {
 			System.err.println("Logger not configured");
 		}
+		loggerConfigureTime += timer.flip();
 
 		// Запуск программы
 		try {
@@ -86,6 +90,8 @@ public class CodeRemover {
 			ClassCollection classCollection = JarManager.loadClassesFromJar(inputFile);
 			LOG.log(Level.INFO, "Было загружено {0} Файлов, из них {1} классов.", new Object[]{classCollection.getClasses().size() + classCollection.getExtraFiles().size(), classCollection.getClasses().size()});
 
+			readTime += timer.flip();
+
 			LOG.log(Level.INFO, "Поиск аннотации Removable...");
 			// Ищем аннотации в загруженных классах
 			Map<CtClass, ClassChangeList> list = new HashMap<>();
@@ -104,6 +110,8 @@ public class CodeRemover {
 			}
 			LOG.log(Level.INFO, "Поиск аннотаций Removable завершён. Было найдено {0} классов", new Object[]{list.size()});
 
+			searchTime += timer.flip();
+
 			LOG.log(Level.INFO, "Применение изменений в классах...");
 			// Применяем изменения в классах
 			for(Iterator<Map.Entry<CtClass, ClassChangeList>> it = list.entrySet().iterator(); it.hasNext();) {
@@ -115,7 +123,8 @@ public class CodeRemover {
 					LOG.log(Level.INFO, "Класс {0} был удалён.", new Object[]{entry.getKey().getName()});
 				} else {
 					// Удаляем методы и поля
-					LOG.log(Level.INFO, "Применяю изменения для класса {0}.", new Object[]{entry.getKey().getName()});
+					if(DEEP_LOG)
+						LOG.log(Level.INFO, "Применяю изменения для класса {0}.", new Object[]{entry.getKey().getName()});
 					try {
 						AnnotationProccessor.applyChange(entry.getValue(), entry.getKey());
 					} catch (CannotCompileException ex) {
@@ -124,6 +133,8 @@ public class CodeRemover {
 				}
 			}
 
+			applyTime += timer.flip();
+
 			try {
 				// Записываем новый jar
 				Files.deleteIfExists(outputFile.toPath());
@@ -131,10 +142,33 @@ public class CodeRemover {
 			} catch (CannotCompileException ex) {
 				LOG.log(Level.SEVERE, "Произошла ошибка записи файлов.", ex);
 			}
+
+			writeTime += timer.flip();
+
+			if(DEEP_LOG)
+				LOG.log(Level.INFO, "Code Remover завершил работу за {0}ms (loggerConfigure {1}ms, read {2}ms, search {3}ms, apply {4}ms, write {5}ms).", new Object[]{loggerConfigureTime + readTime + searchTime + applyTime + writeTime, loggerConfigureTime, readTime, searchTime, applyTime, writeTime});
+			else
+				LOG.log(Level.INFO, "Code Remover завершил работу за {0}ms.", new Object[]{loggerConfigureTime + readTime + searchTime + applyTime + writeTime});
 		} catch (IOException | IllegalArgumentException ex) {
 			System.out.println(ex.getMessage());
 			System.exit(1);
 		}
+	}
+
+	private static class Timer {
+
+		private long start;
+
+		public Timer() {
+			start = System.currentTimeMillis();
+		}
+
+		public int flip() {
+			int rv = (int)(System.currentTimeMillis() - start);
+			start = System.currentTimeMillis();
+			return rv;
+		}
+
 	}
 
 }
