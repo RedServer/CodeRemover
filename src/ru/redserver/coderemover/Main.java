@@ -1,3 +1,5 @@
+package ru.redserver.coderemover;
+
 
 import ru.redserver.coderemover.CodeRemover;
 
