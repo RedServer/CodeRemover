@@ -76,18 +76,8 @@ public class CodeRemover {
 			for(Iterator<CtClass> it = classCollection.getClasses().iterator(); it.hasNext();) {
 				CtClass clazz = it.next();
 				try {
-					ClassChangeList classChangeList = AnnotationProccessor.processClass(clazz, false);
-					// Проверяем, найдена ли аннотация в классе
-					if(!classChangeList.isUnchanged()) {
-						if(DEEP_LOG) LOG.log(Level.INFO, "В классе {0} была найдена аннотация Removable.", new Object[]{clazz.getName()});
-						if(classChangeList.isRemoveClass()) {
-							it.remove();
-							LOG.info("Удалён класс: " + clazz.getName());
-						} else {
-							if(DEEP_LOG)
-								LOG.info("Применяю изменения для класса " + clazz.getName());
-							AnnotationProccessor.applyChange(classChangeList, clazz);
-						}
+					if(AnnotationProccessor.processClass(clazz) == null) {
+						it.remove();
 					}
 				} catch (ClassNotFoundException | NotFoundException | CannotCompileException ex) {
 					LOG.log(Level.SEVERE, "Произошла ошибка при обработке класса: " + clazz.getName(), ex);
