@@ -2,7 +2,6 @@ package ru.redserver.coderemover;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -119,7 +118,6 @@ public class CodeRemover {
 
 			try {
 				// Записываем новый jar
-				Files.deleteIfExists(outputFile.toPath());
 				JarManager.writeClasssesToJar(outputFile, classCollection);
 			} catch (CannotCompileException ex) {
 				LOG.log(Level.SEVERE, "Произошла ошибка записи файлов", ex);
