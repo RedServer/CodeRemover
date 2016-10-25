@@ -77,23 +77,25 @@ public class CodeRemover {
 			LOG.log(Level.INFO, "------ Code Remover ------");
 
 			// Проверяем входные данные
-			if(args.length < 2) throw new IllegalArgumentException("Too few arguments: <input file> <output file>");
+			if(args.length < 2) throw new IllegalArgumentException("Слишком мало аргументов: <input file> <output file>");
 			File inputFile = new File(args[0]);
-			if(!inputFile.exists() || !inputFile.isFile()) throw new IllegalArgumentException("Input file does not exists: " + inputFile);
+			if(!inputFile.exists() || !inputFile.isFile()) throw new IllegalArgumentException("Файл не существует: " + inputFile);
 
 			File outputFile = new File(args[1]);
 
-			LOG.log(Level.INFO, "Input file: {0}", inputFile.getAbsolutePath());
-			LOG.log(Level.INFO, "Output file: {0}", outputFile.getAbsolutePath());
+			if(DEEP_LOG) {
+				LOG.log(Level.INFO, "Input file: {0}", inputFile.getAbsolutePath());
+				LOG.log(Level.INFO, "Output file: {0}", outputFile.getAbsolutePath());
+			}
 
 			LOG.log(Level.INFO, "Загрузка списка файлов...");
 			// Загружаем Jar файл
 			ClassCollection classCollection = JarManager.loadClassesFromJar(inputFile);
-			LOG.log(Level.INFO, "Было загружено {0} Файлов, из них {1} классов.", new Object[]{classCollection.getClasses().size() + classCollection.getExtraFiles().size(), classCollection.getClasses().size()});
+			if(DEEP_LOG) LOG.log(Level.INFO, "Было загружено {0} Файлов, из них {1} классов.", new Object[]{classCollection.getClasses().size() + classCollection.getExtraFiles().size(), classCollection.getClasses().size()});
 
 			readTime += timer.flip();
 
-			LOG.log(Level.INFO, "Поиск аннотации Removable...");
+			if(DEEP_LOG) LOG.log(Level.INFO, "Поиск аннотации Removable...");
 			// Ищем аннотации в загруженных классах
 			Map<CtClass, ClassChangeList> list = new HashMap<>();
 			for(CtClass clazz : classCollection.getClasses()) {
@@ -106,14 +108,14 @@ public class CodeRemover {
 						list.put(clazz, classChangeList);
 					}
 				} catch (ClassNotFoundException | NotFoundException | CannotCompileException ex) {
-					LOG.log(Level.SEVERE, "Произошла ошибка при обработке класса.", ex);
+					LOG.log(Level.SEVERE, "Произошла ошибка при обработке класса: " + clazz.getName(), ex);
 				}
 			}
-			LOG.log(Level.INFO, "Поиск аннотаций Removable завершён. Было найдено {0} классов", new Object[]{list.size()});
+			if(DEEP_LOG) LOG.log(Level.INFO, "Поиск аннотаций Removable завершён. Было найдено {0} классов", new Object[]{list.size()});
 
 			searchTime += timer.flip();
 
-			LOG.log(Level.INFO, "Применение изменений в классах...");
+			if(DEEP_LOG) LOG.log(Level.INFO, "Применение изменений в классах...");
 			// Применяем изменения в классах
 			for(Iterator<Map.Entry<CtClass, ClassChangeList>> it = list.entrySet().iterator(); it.hasNext();) {
 				Map.Entry<CtClass, ClassChangeList> entry = it.next();
@@ -121,15 +123,15 @@ public class CodeRemover {
 					// Удаляем класс
 					classCollection.getClasses().removeIf(clazz -> clazz.getName().equals(entry.getKey().getName()));
 					it.remove();
-					LOG.log(Level.INFO, "Класс {0} был удалён.", new Object[]{entry.getKey().getName()});
+					LOG.info("Удалён класс: " + entry.getKey().getName());
 				} else {
 					// Удаляем методы и поля
 					if(DEEP_LOG)
-						LOG.log(Level.INFO, "Применяю изменения для класса {0}.", new Object[]{entry.getKey().getName()});
+						LOG.info("Применяю изменения для класса " + entry.getKey().getName());
 					try {
 						AnnotationProccessor.applyChange(entry.getValue(), entry.getKey());
 					} catch (CannotCompileException ex) {
-						LOG.log(Level.SEVERE, "Произошла ошибка при применении изменений в классе.", ex);
+						LOG.log(Level.SEVERE, "Произошла ошибка при применении изменений в классе: " + entry.getKey().getName(), ex);
 					}
 				}
 			}
@@ -141,7 +143,7 @@ public class CodeRemover {
 				Files.deleteIfExists(outputFile.toPath());
 				JarManager.writeClasssesToJar(outputFile, classCollection);
 			} catch (CannotCompileException ex) {
-				LOG.log(Level.SEVERE, "Произошла ошибка записи файлов.", ex);
+				LOG.log(Level.SEVERE, "Произошла ошибка записи файлов", ex);
 			}
 
 			writeTime += timer.flip();
