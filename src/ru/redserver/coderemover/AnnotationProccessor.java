@@ -1,7 +1,10 @@
 package ru.redserver.coderemover;
 
+import java.util.ArrayList;
+import java.util.List;
 import javassist.CannotCompileException;
 import javassist.CtClass;
+import javassist.CtConstructor;
 import javassist.CtField;
 import javassist.CtMethod;
 import javassist.NotFoundException;
@@ -27,6 +30,7 @@ public class AnnotationProccessor {
 		Removable classAnnotation = (Removable)clazz.getAnnotation(Removable.class);
 		if(classAnnotation != null) {
 			if(classAnnotation.remove()) {
+				LOG.info("Удалён класс: " + clazz.getName());
 				return null;
 			} else {
 				// Удаляем аннотацию
@@ -56,13 +60,13 @@ public class AnnotationProccessor {
 		}
 
 		// Проверяем поля
+		List<CtField> removeFields = new ArrayList<>();
+
 		for(CtField field : clazz.getDeclaredFields()) {
 			Removable fieldAnnotation = (Removable)field.getAnnotation(Removable.class);
 			if(fieldAnnotation != null) {
 				if(fieldAnnotation.remove()) {
-					// Удаляем поле
-					clazz.removeField(field);
-					LOG.info("Удалено поле " + clazz.getName() + "." + field.getName());
+					removeFields.add(field);
 				} else {
 					// Удаляем аннотацию
 					AnnotationsAttribute attr = (AnnotationsAttribute)field.getFieldInfo().getAttribute(AnnotationsAttribute.invisibleTag);
@@ -70,6 +74,21 @@ public class AnnotationProccessor {
 					field.getFieldInfo().addAttribute(attr);
 					LOG.info(String.format("Удалена аннотация @%s для поля: %s.%s", Removable.class.getSimpleName(), clazz.getName(), field.getName()));
 				}
+			}
+		}
+
+		// Убираем инициализацию удалённых полей из конструкторов, чтобы не получить NoSuchFieldError
+		if(!removeFields.isEmpty()) {
+			ConstructorCleaner editor = new ConstructorCleaner(clazz, removeFields);
+			for(CtConstructor constructor : clazz.getDeclaredConstructors()) {
+				editor.setConstructor(constructor);
+				constructor.instrument(editor);
+			}
+
+			// А теперь можно удалить сами поля (если это сделать раньше, можно получить NotFound на этапе чистки конструкторов)
+			for(CtField field : removeFields) {
+				clazz.removeField(field);
+				LOG.info("Удалено поле: " + clazz.getName() + "." + field.getName());
 			}
 		}
 
