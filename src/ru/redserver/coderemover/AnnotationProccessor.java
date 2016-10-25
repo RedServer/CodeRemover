@@ -29,6 +29,7 @@ public class AnnotationProccessor {
 				AnnotationsAttribute attr = (AnnotationsAttribute)clazz.getClassFile().getAttribute(AnnotationsAttribute.invisibleTag);
 				attr.removeAnnotation(Removable.class.getName());
 				clazz.getClassFile().addAttribute(attr);
+				LOG.info(String.format("Удалена аннотация @%s для класса: %s", Removable.class.getSimpleName(), clazz.getName()));
 			}
 		}
 
@@ -44,6 +45,7 @@ public class AnnotationProccessor {
 					AnnotationsAttribute attr = (AnnotationsAttribute)method.getMethodInfo().getAttribute(AnnotationsAttribute.invisibleTag);
 					attr.removeAnnotation(Removable.class.getName());
 					method.getMethodInfo().addAttribute(attr);
+					LOG.info(String.format("Удалена аннотация @%s для метода: %s.%s", Removable.class.getSimpleName(), clazz.getName(), method.getName() + method.getSignature()));
 				}
 			}
 		}
@@ -60,6 +62,7 @@ public class AnnotationProccessor {
 					AnnotationsAttribute attr = (AnnotationsAttribute)field.getFieldInfo().getAttribute(AnnotationsAttribute.invisibleTag);
 					attr.removeAnnotation(Removable.class.getName());
 					field.getFieldInfo().addAttribute(attr);
+					LOG.info(String.format("Удалена аннотация @%s для поля: %s.%s", Removable.class.getSimpleName(), clazz.getName(), field.getName()));
 				}
 			}
 		}
