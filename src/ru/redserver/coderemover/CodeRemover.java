@@ -2,9 +2,7 @@ package ru.redserver.coderemover;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.FileHandler;
 import java.util.logging.Level;
@@ -29,7 +27,7 @@ public class CodeRemover {
 
 	public void run(String args[]) {
 		Timer timer = new Timer();
-		int loggerConfigureTime = 0, readTime = 0, searchTime = 0, applyTime = 0, writeTime = 0;
+		int loggerConfigureTime = 0, readTime = 0, applyTime = 0, writeTime = 0;
 
 		// Настраиваем Logger
 		try {
@@ -75,42 +73,24 @@ public class CodeRemover {
 
 			if(DEEP_LOG) LOG.log(Level.INFO, "Поиск аннотации Removable...");
 			// Ищем аннотации в загруженных классах
-			Map<CtClass, ClassChangeList> list = new HashMap<>();
-			for(CtClass clazz : classCollection.getClasses()) {
+			for(Iterator<CtClass> it = classCollection.getClasses().iterator(); it.hasNext();) {
+				CtClass clazz = it.next();
 				try {
 					ClassChangeList classChangeList = AnnotationProccessor.processClass(clazz, false);
 					// Проверяем, найдена ли аннотация в классе
 					if(!classChangeList.isUnchanged()) {
-						if(DEEP_LOG)
-							LOG.log(Level.INFO, "В классе {0} была найдена аннотация Removable.", new Object[]{clazz.getName()});
-						list.put(clazz, classChangeList);
+						if(DEEP_LOG) LOG.log(Level.INFO, "В классе {0} была найдена аннотация Removable.", new Object[]{clazz.getName()});
+						if(classChangeList.isRemoveClass()) {
+							it.remove();
+							LOG.info("Удалён класс: " + clazz.getName());
+						} else {
+							if(DEEP_LOG)
+								LOG.info("Применяю изменения для класса " + clazz.getName());
+							AnnotationProccessor.applyChange(classChangeList, clazz);
+						}
 					}
 				} catch (ClassNotFoundException | NotFoundException | CannotCompileException ex) {
 					LOG.log(Level.SEVERE, "Произошла ошибка при обработке класса: " + clazz.getName(), ex);
-				}
-			}
-			if(DEEP_LOG) LOG.log(Level.INFO, "Поиск аннотаций Removable завершён. Было найдено {0} классов", new Object[]{list.size()});
-
-			searchTime += timer.flip();
-
-			if(DEEP_LOG) LOG.log(Level.INFO, "Применение изменений в классах...");
-			// Применяем изменения в классах
-			for(Iterator<Map.Entry<CtClass, ClassChangeList>> it = list.entrySet().iterator(); it.hasNext();) {
-				Map.Entry<CtClass, ClassChangeList> entry = it.next();
-				if(entry.getValue().isRemoveClass()) {
-					// Удаляем класс
-					classCollection.getClasses().removeIf(clazz -> clazz.getName().equals(entry.getKey().getName()));
-					it.remove();
-					LOG.info("Удалён класс: " + entry.getKey().getName());
-				} else {
-					// Удаляем методы и поля
-					if(DEEP_LOG)
-						LOG.info("Применяю изменения для класса " + entry.getKey().getName());
-					try {
-						AnnotationProccessor.applyChange(entry.getValue(), entry.getKey());
-					} catch (CannotCompileException ex) {
-						LOG.log(Level.SEVERE, "Произошла ошибка при применении изменений в классе: " + entry.getKey().getName(), ex);
-					}
 				}
 			}
 
@@ -126,9 +106,9 @@ public class CodeRemover {
 			writeTime += timer.flip();
 
 			if(DEEP_LOG)
-				LOG.log(Level.INFO, "Code Remover завершил работу за {0}ms (loggerConfigure {1}ms, read {2}ms, search {3}ms, apply {4}ms, write {5}ms).", new Object[]{loggerConfigureTime + readTime + searchTime + applyTime + writeTime, loggerConfigureTime, readTime, searchTime, applyTime, writeTime});
+				LOG.log(Level.INFO, "Code Remover завершил работу за {0}ms (loggerConfigure {1}ms, read {2}ms, apply {3}ms, write {4}ms).", new Object[]{loggerConfigureTime + readTime + applyTime + writeTime, loggerConfigureTime, readTime, applyTime, writeTime});
 			else
-				LOG.log(Level.INFO, "Code Remover завершил работу за {0}ms.", new Object[]{loggerConfigureTime + readTime + searchTime + applyTime + writeTime});
+				LOG.log(Level.INFO, "Code Remover завершил работу за {0}ms.", new Object[]{loggerConfigureTime + readTime + applyTime + writeTime});
 		} catch (IOException | IllegalArgumentException ex) {
 			System.out.println(ex.getMessage());
 			System.exit(1);

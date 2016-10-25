@@ -1,7 +1,5 @@
 package ru.redserver.coderemover;
 
-import java.util.Arrays;
-import java.util.List;
 import javassist.CannotCompileException;
 import javassist.CtClass;
 import javassist.CtField;
@@ -18,23 +16,6 @@ public class AnnotationProccessor {
 
 	public static ClassChangeList processClass(CtClass clazz, boolean parent) throws ClassNotFoundException, NotFoundException, CannotCompileException {
 		ClassChangeList classChangeList = new ClassChangeList();
-
-		// Если в родительских классах {метод, поле} был удалён, проверяем, не перезаписан ли он в этом классе
-		if(!clazz.getClassFile().getSuperclass().equalsIgnoreCase("java.lang.Object") && CodeRemover.CLASS_POOL.find(clazz.getClassFile().getSuperclass()) != null) {
-			ClassChangeList superClassChange = processClass(clazz.getSuperclass(), true);
-
-			if(parent) classChangeList.merge(superClassChange);
-
-			// Ищем по родительским методам
-			List<CtMethod> methods = Arrays.asList(clazz.getDeclaredMethods());
-			for(String superMethod : superClassChange.getMethods()) {
-				for(CtMethod method : methods) {
-					if(superMethod.equals(method.getName())) {
-						classChangeList.getMethods().add(superMethod);
-					}
-				}
-			}
-		}
 
 		// Проверяем класс
 		Removable classAnnotation = (Removable)clazz.getAnnotation(Removable.class);
