@@ -66,7 +66,7 @@ public class CodeRemover {
 				LOG.log(Level.INFO, "Output file: {0}", outputFile.getAbsolutePath());
 			}
 
-			LOG.log(Level.INFO, "Загрузка списка файлов...");
+			if(DEEP_LOG) LOG.log(Level.INFO, "Загрузка списка файлов...");
 			// Загружаем Jar файл
 			ClassCollection classCollection = JarManager.loadClassesFromJar(inputFile);
 			if(DEEP_LOG) LOG.log(Level.INFO, "Было загружено {0} Файлов, из них {1} классов.", new Object[]{classCollection.getClasses().size() + classCollection.getExtraFiles().size(), classCollection.getClasses().size()});

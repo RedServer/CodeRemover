@@ -2,14 +2,12 @@ package ru.redserver.coderemover;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.logging.Level;
 import javassist.CannotCompileException;
 import javassist.CtClass;
 import javassist.CtField;
 import javassist.CtMethod;
 import javassist.NotFoundException;
 import javassist.bytecode.AnnotationsAttribute;
-import static ru.redserver.coderemover.CodeRemover.DEEP_LOG;
 import static ru.redserver.coderemover.CodeRemover.LOG;
 
 /**
@@ -90,20 +88,19 @@ public class AnnotationProccessor {
 
 	public static CtClass applyChange(ClassChangeList changeList, CtClass clazz) throws CannotCompileException {
 		// Удаляю методы из класса
-		changeList.getMethods().forEach(method -> {
+		changeList.getMethods().forEach(methodName -> {
 			try {
-				if(DEEP_LOG)
-					LOG.log(Level.INFO, "Удаление метода {0} в классе {1}.", new Object[]{method, clazz.getName()});
-				clazz.removeMethod(clazz.getDeclaredMethod(method));
+				CtMethod method = clazz.getDeclaredMethod(methodName);
+				clazz.removeMethod(method);
+				LOG.info("Удалён метод: " + clazz.getName() + "." + method.getName() + method.getSignature());
 			} catch (NotFoundException ex) {
 			}
 		});
 		// Удаляю поля из класса
-		changeList.getFields().forEach(field -> {
+		changeList.getFields().forEach(fieldName -> {
 			try {
-				if(DEEP_LOG)
-					LOG.log(Level.INFO, "Удаление поля {0} в классе {1}.", new Object[]{field, clazz.getName()});
-				clazz.removeField(clazz.getDeclaredField(field));
+				clazz.removeField(clazz.getDeclaredField(fieldName));
+				LOG.info("Удалено поле " + clazz.getName() + "." + fieldName);
 			} catch (NotFoundException ex) {
 			}
 		});
