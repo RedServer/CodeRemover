@@ -61,10 +61,11 @@ public class CodeRemover {
 			ConsoleHandler consoleHandler = new ConsoleHandler();
 			consoleHandler.setFormatter(formatter);
 
-			FileHandler fileHandler = new FileHandler("coderemover.log", true);
-			fileHandler.setFormatter(formatter);
-
-			LOG.addHandler(fileHandler);
+			if(DEEP_LOG) {
+				FileHandler fileHandler = new FileHandler("coderemover.log", true);
+				fileHandler.setFormatter(formatter);
+				LOG.addHandler(fileHandler);
+			}
 			LOG.addHandler(consoleHandler);
 		} catch (IOException e) {
 			System.err.println("Logger not configured");
