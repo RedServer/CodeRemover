@@ -20,7 +20,7 @@ public class AnnotationProccessor {
 		ClassChangeList classChangeList = new ClassChangeList();
 
 		// Если в родительских классах {метод, поле} был удалён, проверяем, не перезаписан ли он в этом классе
-		if(clazz.getSuperclass() != CodeRemover.CLASS_POOL.get("java.lang.Object")) {
+		if(!clazz.getClassFile().getSuperclass().equalsIgnoreCase("java.lang.Object") && CodeRemover.CLASS_POOL.find(clazz.getClassFile().getSuperclass()) != null) {
 			ClassChangeList superClassChange = processClass(clazz.getSuperclass(), true);
 
 			if(parent) classChangeList.merge(superClassChange);
