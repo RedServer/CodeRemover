@@ -3,16 +3,12 @@ package ru.redserver.coderemover;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.FileHandler;
-import java.util.logging.Formatter;
 import java.util.logging.Level;
-import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import javassist.CannotCompileException;
 import javassist.ClassPool;
@@ -38,24 +34,7 @@ public class CodeRemover {
 
 		// Настраиваем Logger
 		try {
-			Formatter formatter = new Formatter() {
-				Date date = new Date();
-				SimpleDateFormat formatter = new SimpleDateFormat("H:mm:ss");
-
-				@Override
-				public String format(LogRecord record) {
-					date.setTime(record.getMillis());
-					StringBuilder sb = new StringBuilder();
-					sb.append("[");
-					sb.append(formatter.format(date));
-					sb.append("] [");
-					sb.append(record.getLevel().toString());
-					sb.append("]: ");
-					sb.append(formatMessage(record));
-					sb.append("\n");
-					return sb.toString();
-				}
-			};
+			LogFormatter formatter = new LogFormatter();
 			LOG.setUseParentHandlers(false);
 
 			ConsoleHandler consoleHandler = new ConsoleHandler();
