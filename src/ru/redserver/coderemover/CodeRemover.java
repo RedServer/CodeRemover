@@ -72,13 +72,13 @@ public class CodeRemover {
 			readTime += timer.flip();
 
 			if(DEEP_LOG) LOG.log(Level.INFO, "Поиск аннотации Removable...");
+			AnnotationProccessor processor = new AnnotationProccessor(CodeRemover.CLASS_POOL);
+
 			// Ищем аннотации в загруженных классах
 			for(Iterator<CtClass> it = classCollection.getClasses().iterator(); it.hasNext();) {
 				CtClass clazz = it.next();
 				try {
-					if(AnnotationProccessor.processClass(clazz) == null) {
-						it.remove();
-					}
+					if(processor.processClass(clazz) == null) it.remove();
 				} catch (ClassNotFoundException | NotFoundException | CannotCompileException ex) {
 					LOG.log(Level.SEVERE, "Произошла ошибка при обработке класса: " + clazz.getName(), ex);
 				}
@@ -99,8 +99,8 @@ public class CodeRemover {
 				LOG.log(Level.INFO, "Code Remover завершил работу за {0}ms (loggerConfigure {1}ms, read {2}ms, apply {3}ms, write {4}ms).", new Object[]{loggerConfigureTime + readTime + applyTime + writeTime, loggerConfigureTime, readTime, applyTime, writeTime});
 			else
 				LOG.log(Level.INFO, "Code Remover завершил работу за {0}ms.", new Object[]{loggerConfigureTime + readTime + applyTime + writeTime});
-		} catch (IOException | IllegalArgumentException ex) {
-			System.out.println(ex.getMessage());
+		} catch (Exception ex) {
+			LOG.log(Level.SEVERE, "Ошибка", ex);
 			System.exit(1);
 		}
 	}
