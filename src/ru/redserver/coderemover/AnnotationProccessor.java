@@ -26,6 +26,7 @@ public final class AnnotationProccessor {
 	private final Set<CtField> deletedFields = new HashSet<>(); // удалённые поля
 	private final Map<String, String> deletedClasses = new HashMap<>(); // удалённые классы (ключ - имя, значение - имя родителя)
 	private final ClassPool pool;
+	private boolean rebuild = false;
 
 	public AnnotationProccessor(ClassPool pool) {
 		this.pool = pool;
@@ -67,6 +68,12 @@ public final class AnnotationProccessor {
 		checkMethods(clazz);
 		checkConstructors(clazz);
 
+		if(rebuild) {
+			clazz.rebuildClassFile();
+			clazz.freeze();
+			rebuild = false;
+		}
+
 		return clazz;
 	}
 
@@ -83,6 +90,7 @@ public final class AnnotationProccessor {
 		for(String iFaceName : ifaces) {
 			if(mayDeleteInterface(iFaceName)) {
 				isDirty = true;
+				rebuild = true;
 				CodeRemover.LOG.info(String.format("Удалено использование интерфейса %s в %s", iFaceName, clazz.getName()));
 			} else {
 				list.add(iFaceName);
@@ -100,6 +108,8 @@ public final class AnnotationProccessor {
 		String superName = getSuperclass(oldSuper);
 		if(!oldSuper.equals(superName)) {
 			clazz.getClassFile2().setSuperclass(superName);
+			clazz.replaceClassName(oldSuper, superName);
+			rebuild = true;
 			CodeRemover.LOG.info(String.format("Изменён родительский класс для %s: %s -> %s", clazz.getName(), oldSuper, superName));
 		}
 	}
@@ -163,6 +173,7 @@ public final class AnnotationProccessor {
 				if(methodAnnotation.remove()) {
 					// Удаляем метод
 					clazz.removeMethod(method);
+					rebuild = true;
 					CodeRemover.LOG.info("Удалён метод: " + clazz.getName() + "." + method.getName() + method.getSignature());
 				} else {
 					// Удаляем аннотацию
@@ -191,6 +202,7 @@ public final class AnnotationProccessor {
 		// А теперь можно удалить сами поля (если это сделать раньше, можно получить NotFound на этапе чистки конструкторов)
 		for(CtField field : deletedFields) {
 			clazz.removeField(field);
+			rebuild = true;
 			CodeRemover.LOG.info("Удалено поле: " + clazz.getName() + "." + field.getName());
 		}
 
