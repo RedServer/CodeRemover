@@ -21,6 +21,7 @@ import javassist.bytecode.AnnotationsAttribute;
 public final class AnnotationProccessor {
 
 	private final Set<String> deletedIfaces = new HashSet<>(); // удалённые интерфейсы
+	private final Set<CtField> deletedFields = new HashSet<>(); // удалённые поля
 	private final ClassPool pool;
 
 	public AnnotationProccessor(ClassPool pool) {
@@ -54,57 +55,9 @@ public final class AnnotationProccessor {
 		}
 
 		checkInterfaces(clazz);
-
-		// Проверяем методы
-		for(CtMethod method : clazz.getDeclaredMethods()) {
-			Removable methodAnnotation = (Removable)method.getAnnotation(Removable.class);
-			if(methodAnnotation != null) {
-				if(methodAnnotation.remove()) {
-					// Удаляем метод
-					clazz.removeMethod(method);
-					CodeRemover.LOG.info("Удалён метод: " + clazz.getName() + "." + method.getName() + method.getSignature());
-				} else {
-					// Удаляем аннотацию
-					AnnotationsAttribute attr = (AnnotationsAttribute)method.getMethodInfo().getAttribute(AnnotationsAttribute.invisibleTag);
-					attr.removeAnnotation(Removable.class.getName());
-					method.getMethodInfo().addAttribute(attr);
-					CodeRemover.LOG.info(String.format("Удалена аннотация @%s для метода: %s.%s", Removable.class.getSimpleName(), clazz.getName(), method.getName() + method.getSignature()));
-				}
-			}
-		}
-
-		// Проверяем поля
-		List<CtField> removeFields = new ArrayList<>();
-
-		for(CtField field : clazz.getDeclaredFields()) {
-			Removable fieldAnnotation = (Removable)field.getAnnotation(Removable.class);
-			if(fieldAnnotation != null) {
-				if(fieldAnnotation.remove()) {
-					removeFields.add(field);
-				} else {
-					// Удаляем аннотацию
-					AnnotationsAttribute attr = (AnnotationsAttribute)field.getFieldInfo().getAttribute(AnnotationsAttribute.invisibleTag);
-					attr.removeAnnotation(Removable.class.getName());
-					field.getFieldInfo().addAttribute(attr);
-					CodeRemover.LOG.info(String.format("Удалена аннотация @%s для поля: %s.%s", Removable.class.getSimpleName(), clazz.getName(), field.getName()));
-				}
-			}
-		}
-
-		// Убираем инициализацию удалённых полей из конструкторов, чтобы не получить NoSuchFieldError
-		if(!removeFields.isEmpty()) {
-			ConstructorCleaner editor = new ConstructorCleaner(clazz, removeFields);
-			for(CtConstructor constructor : clazz.getDeclaredConstructors()) {
-				editor.setConstructor(constructor);
-				constructor.instrument(editor);
-			}
-
-			// А теперь можно удалить сами поля (если это сделать раньше, можно получить NotFound на этапе чистки конструкторов)
-			for(CtField field : removeFields) {
-				clazz.removeField(field);
-				CodeRemover.LOG.info("Удалено поле: " + clazz.getName() + "." + field.getName());
-			}
-		}
+		checkFields(clazz);
+		checkMethods(clazz);
+		checkConstructors(clazz);
 
 		return clazz;
 	}
@@ -128,6 +81,72 @@ public final class AnnotationProccessor {
 			}
 		}
 		if(isDirty) clazz.getClassFile2().setInterfaces(list.toArray(new String[list.size()]));
+	}
+
+	/**
+	 * Проверяет поля
+	 * @param clazz Класс
+	 */
+	private void checkFields(CtClass clazz) throws ClassNotFoundException {
+		for(CtField field : clazz.getDeclaredFields()) {
+			Removable fieldAnnotation = (Removable)field.getAnnotation(Removable.class);
+			if(fieldAnnotation != null) {
+				if(fieldAnnotation.remove()) {
+					deletedFields.add(field);
+				} else {
+					// Удаляем аннотацию
+					AnnotationsAttribute attr = (AnnotationsAttribute)field.getFieldInfo().getAttribute(AnnotationsAttribute.invisibleTag);
+					attr.removeAnnotation(Removable.class.getName());
+					field.getFieldInfo().addAttribute(attr);
+					CodeRemover.LOG.info(String.format("Удалена аннотация @%s для поля: %s.%s", Removable.class.getSimpleName(), clazz.getName(), field.getName()));
+				}
+			}
+		}
+	}
+
+	/**
+	 * Проверяет методы
+	 * @param clazz Класс
+	 */
+	private void checkMethods(CtClass clazz) throws ClassNotFoundException, NotFoundException {
+		for(CtMethod method : clazz.getDeclaredMethods()) {
+			Removable methodAnnotation = (Removable)method.getAnnotation(Removable.class);
+			if(methodAnnotation != null) {
+				if(methodAnnotation.remove()) {
+					// Удаляем метод
+					clazz.removeMethod(method);
+					CodeRemover.LOG.info("Удалён метод: " + clazz.getName() + "." + method.getName() + method.getSignature());
+				} else {
+					// Удаляем аннотацию
+					AnnotationsAttribute attr = (AnnotationsAttribute)method.getMethodInfo().getAttribute(AnnotationsAttribute.invisibleTag);
+					attr.removeAnnotation(Removable.class.getName());
+					method.getMethodInfo().addAttribute(attr);
+					CodeRemover.LOG.info(String.format("Удалена аннотация @%s для метода: %s.%s", Removable.class.getSimpleName(), clazz.getName(), method.getName() + method.getSignature()));
+				}
+			}
+		}
+	}
+
+	/**
+	 * Проверяет конструкторы
+	 * @param clazz Класс
+	 */
+	private void checkConstructors(CtClass clazz) throws NotFoundException, CannotCompileException {
+		// Убираем инициализацию удалённых полей из конструкторов, чтобы не получить NoSuchFieldError
+		if(deletedFields.isEmpty()) return;
+		ConstructorCleaner editor = new ConstructorCleaner(clazz, deletedFields);
+		for(CtConstructor constructor : clazz.getDeclaredConstructors()) {
+			editor.setConstructor(constructor);
+			constructor.instrument(editor);
+		}
+
+		// А теперь можно удалить сами поля (если это сделать раньше, можно получить NotFound на этапе чистки конструкторов)
+		for(CtField field : deletedFields) {
+			clazz.removeField(field);
+			CodeRemover.LOG.info("Удалено поле: " + clazz.getName() + "." + field.getName());
+		}
+
+		deletedFields.clear(); // очищаем для следующего класса
 	}
 
 	/**
