@@ -1,8 +1,10 @@
 package ru.redserver.coderemover;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 import javassist.CannotCompileException;
@@ -22,6 +24,7 @@ public final class AnnotationProccessor {
 
 	private final Set<String> deletedIfaces = new HashSet<>(); // удалённые интерфейсы
 	private final Set<CtField> deletedFields = new HashSet<>(); // удалённые поля
+	private final Map<String, String> deletedClasses = new HashMap<>(); // удалённые классы (ключ - имя, значение - имя родителя)
 	private final ClassPool pool;
 
 	public AnnotationProccessor(ClassPool pool) {
@@ -42,8 +45,12 @@ public final class AnnotationProccessor {
 		if(classAnnotation != null) {
 			if(classAnnotation.remove()) {
 				boolean isInterface = (clazz.isInterface() && !clazz.isAnnotation());
+				if(isInterface) {
+					deletedIfaces.add(clazz.getName());
+				} else if(!clazz.isAnnotation() && !clazz.isEnum()) { // ненаследуемые
+					deletedClasses.put(clazz.getName(), clazz.getClassFile2().getSuperclass());
+				}
 				CodeRemover.LOG.info("Удалён " + (isInterface ? "интерфейс" : "класс") + ": " + clazz.getName());
-				if(isInterface) deletedIfaces.add(clazz.getName());
 				return null;
 			} else {
 				// Удаляем аннотацию
@@ -55,6 +62,7 @@ public final class AnnotationProccessor {
 		}
 
 		checkInterfaces(clazz);
+		checkSuperclass(clazz);
 		checkFields(clazz);
 		checkMethods(clazz);
 		checkConstructors(clazz);
@@ -81,6 +89,46 @@ public final class AnnotationProccessor {
 			}
 		}
 		if(isDirty) clazz.getClassFile2().setInterfaces(list.toArray(new String[list.size()]));
+	}
+
+	/**
+	 * Проверяет, были ли удалены родительские классы и перенаправлят так, чтобы восстановить цепочку наследования
+	 * @param clazz Класс
+	 */
+	private void checkSuperclass(CtClass clazz) throws ClassNotFoundException, CannotCompileException {
+		String oldSuper = clazz.getClassFile2().getSuperclass();
+		String superName = getSuperclass(oldSuper);
+		if(!oldSuper.equals(superName)) {
+			clazz.getClassFile2().setSuperclass(superName);
+			CodeRemover.LOG.info(String.format("Изменён родительский класс для %s: %s -> %s", clazz.getName(), oldSuper, superName));
+		}
+	}
+
+	/**
+	 * Ищет родительский класс
+	 * @param className Старый родительский класс
+	 * @return Новый родительский класс
+	 */
+	private String getSuperclass(String className) throws ClassNotFoundException {
+		if(className.equals("java.lang.Object")) return className;
+
+		String deletedSuper = deletedClasses.get(className);
+		if(deletedSuper != null) {
+			return getSuperclass(deletedSuper);
+		} else {
+			try {
+				CtClass clazz = pool.get(className);
+				Removable removable = (Removable)clazz.getAnnotation(Removable.class);
+				if(removable != null && removable.remove()) {
+					return getSuperclass(clazz.getClassFile2().getSuperclass());
+				} else { // TODO TheAndrey: Не уверен в правильности логики здесь, но работает это пока как надо
+					return clazz.getName();
+				}
+			} catch (NotFoundException ex) {
+				if(CodeRemover.DEEP_LOG) CodeRemover.LOG.log(Level.WARNING, "Неизвестный класс", ex);
+				return className;
+			}
+		}
 	}
 
 	/**
