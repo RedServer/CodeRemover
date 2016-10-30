@@ -23,7 +23,7 @@ import javassist.bytecode.AnnotationsAttribute;
 public final class AnnotationProccessor {
 
 	private final Set<String> deletedIfaces = new HashSet<>(); // удалённые интерфейсы
-	private final Set<CtField> deletedFields = new HashSet<>(); // удалённые поля
+	private final Set<String> deletedFields = new HashSet<>(); // удалённые поля
 	private final Map<String, String> deletedClasses = new HashMap<>(); // удалённые классы (ключ - имя, значение - имя родителя)
 	private final ClassPool pool;
 	private boolean rebuild = false;
@@ -150,7 +150,7 @@ public final class AnnotationProccessor {
 			Removable fieldAnnotation = (Removable)field.getAnnotation(Removable.class);
 			if(fieldAnnotation != null) {
 				if(fieldAnnotation.remove()) {
-					deletedFields.add(field);
+					deletedFields.add(field.getName());
 				} else {
 					// Удаляем аннотацию
 					AnnotationsAttribute attr = (AnnotationsAttribute)field.getFieldInfo().getAttribute(AnnotationsAttribute.invisibleTag);
@@ -200,10 +200,10 @@ public final class AnnotationProccessor {
 		}
 
 		// А теперь можно удалить сами поля (если это сделать раньше, можно получить NotFound на этапе чистки конструкторов)
-		for(CtField field : deletedFields) {
-			clazz.removeField(field);
+		for(String fieldname : deletedFields) {
+			clazz.removeField(clazz.getDeclaredField(fieldname));
 			rebuild = true;
-			CodeRemover.LOG.info("Удалено поле: " + clazz.getName() + "." + field.getName());
+			CodeRemover.LOG.info("Удалено поле: " + clazz.getName() + "." + fieldname);
 		}
 
 		deletedFields.clear(); // очищаем для следующего класса
