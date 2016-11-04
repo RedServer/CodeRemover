@@ -11,16 +11,11 @@ import javassist.CtClass;
  * Содержит в себе всю необходимую информацию для обратной сборки Jar файла
  * @author Nuclear
  */
-public class ClassCollection {
+public final class ClassCollection {
 
-	private final Map<String, byte[]> extraFiles;
+	private final Map<String, byte[]> extraFiles = new HashMap<>();
 	private Manifest manifest;
-	private final List<CtClass> classes;
-
-	public ClassCollection() {
-		this.classes = new ArrayList<>();
-		this.extraFiles = new HashMap<>();
-	}
+	private final List<CtClass> classes = new ArrayList<>();
 
 	/**
 	 * Получить список файлов (Все файлы кроме .class)

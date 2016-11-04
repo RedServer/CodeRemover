@@ -2,6 +2,7 @@ package ru.redserver.coderemover;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.FileHandler;
@@ -75,14 +76,33 @@ public class CodeRemover {
 			AnnotationProccessor processor = new AnnotationProccessor(CodeRemover.CLASS_POOL);
 
 			// Ищем аннотации в загруженных классах
+			HashSet<String> deletedClasses = new HashSet<>();
+
 			for(Iterator<CtClass> it = classCollection.getClasses().iterator(); it.hasNext();) {
 				CtClass clazz = it.next();
 				try {
-					if(processor.processClass(clazz) == null) it.remove();
+					if(processor.processClass(clazz) == null) {
+						String name = clazz.getName();
+						if(!Utils.isPartOfClass(name)) deletedClasses.add(name);
+						it.remove();
+					}
 				} catch (ClassNotFoundException | NotFoundException | CannotCompileException ex) {
 					LOG.log(Level.SEVERE, "Произошла ошибка при обработке класса: " + clazz.getName(), ex);
 				}
 			}
+
+			// Удаляем вложенные классы и подклассы
+			classCollection.getClasses().removeIf((CtClass clazz) -> {
+				String name = clazz.getName();
+				String parentName = name;
+				while((parentName = Utils.getParentClassName(parentName)) != null) { // проверяем всех родителей, поднимаясь на уровень выше
+					if(deletedClasses.contains(parentName)) {
+						LOG.info("Удалён подкласс: " + name);
+						return true;  // удаляем, если родитель удалён
+					}
+				}
+				return false;
+			});
 
 			applyTime += timer.flip();
 

@@ -17,11 +17,7 @@ import javassist.CtClass;
 import ru.redserver.coderemover.ClassCollection;
 import ru.redserver.coderemover.CodeRemover;
 
-/**
- *
- * @author Nuclear
- */
-public class JarManager {
+public final class JarManager {
 
 	public static ClassCollection loadClassesFromJar(File jar) throws IOException {
 		ClassCollection classCollection = new ClassCollection();
@@ -48,6 +44,7 @@ public class JarManager {
 			}
 		}
 		classCollection.setManifest(jarInputStream.getManifest());
+		jarInputStream.close();
 
 		return classCollection;
 	}
