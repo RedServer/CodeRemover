@@ -198,6 +198,12 @@ public final class AnnotationProccessor {
 			editor.setConstructor(constructor);
 			constructor.instrument(editor);
 		}
+		// static конструктор
+		CtConstructor staticConstructor = clazz.getClassInitializer();
+		if(staticConstructor != null) {
+			editor.setConstructor(staticConstructor);
+			staticConstructor.instrument(editor);
+		}
 
 		// А теперь можно удалить сами поля (если это сделать раньше, можно получить NotFound на этапе чистки конструкторов)
 		for(String fieldname : deletedFields) {

@@ -43,7 +43,7 @@ public final class ConstructorCleaner extends ExprEditor {
 			LOG.info(String.format("Удалено обращение к удалённому полю '%s' в: %s.<init>%s",
 					fieldName,
 					clazz.getName(),
-					constructor != null ? constructor.getSignature() : "**NULL**"
+					constructor != null ? (constructor.isClassInitializer() ? " [static]" : constructor.getSignature()) : "**NULL**"
 			));
 		}
 	}
