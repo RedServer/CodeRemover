@@ -28,6 +28,8 @@ import javassist.bytecode.Opcode;
  */
 public final class AnnotationProccessor {
 
+	private static final String DATA_SEPARATOR = "<::>";
+
 	private final Set<String> deletedIfaces = new HashSet<>(); // удалённые интерфейсы
 	private final Set<String> deletedFields = new HashSet<>(); // удалённые поля
 	private final Map<String, String> deletedClasses = new HashMap<>(); // удалённые классы (ключ - имя, значение - имя родителя)
@@ -156,7 +158,7 @@ public final class AnnotationProccessor {
 			Removable fieldAnnotation = (Removable)field.getAnnotation(Removable.class);
 			if(fieldAnnotation != null) {
 				if(fieldAnnotation.remove()) {
-					deletedFields.add(field.getName());
+					deletedFields.add(field.getName() + DATA_SEPARATOR + field.getSignature());
 				} else {
 					// Удаляем аннотацию
 					AnnotationsAttribute attr = (AnnotationsAttribute)field.getFieldInfo().getAttribute(AnnotationsAttribute.invisibleTag);
@@ -207,10 +209,11 @@ public final class AnnotationProccessor {
 		if(staticConstructor != null) checkConstructor(staticConstructor);
 
 		// А теперь можно удалить сами поля (если это сделать раньше, можно получить NotFound на этапе чистки конструкторов)
-		for(String fieldname : deletedFields) {
-			clazz.removeField(clazz.getDeclaredField(fieldname));
+		for(String field : deletedFields) {
+			String[] fieldData = field.split(DATA_SEPARATOR, 2);
+			clazz.removeField(clazz.getDeclaredField(fieldData[0], fieldData[1]));
 			rebuild = true;
-			CodeRemover.LOG.info("Удалено поле: " + clazz.getName() + "." + fieldname);
+			CodeRemover.LOG.info("Удалено поле: " + clazz.getName() + "." + fieldData[0]);
 		}
 
 		deletedFields.clear(); // очищаем для следующего класса
@@ -233,7 +236,8 @@ public final class AnnotationProccessor {
 				int fieldIndex = it.u16bitAt(pos + 1);
 				String fieldClass = cpool.getFieldrefClassName(fieldIndex);
 				String fieldName = cpool.getFieldrefName(fieldIndex);
-				if(fieldClass.equals(constructor.getDeclaringClass().getName()) && deletedFields.contains(fieldName)) {
+				String fieldSign = cpool.getFieldrefType(fieldIndex);
+				if(fieldClass.equals(constructor.getDeclaringClass().getName()) && deletedFields.contains(fieldName + DATA_SEPARATOR + fieldSign)) {
 					for(int pos2 = lastAload0; pos2 <= (pos + 2); pos2++) {
 						it.writeByte(Opcode.NOP, pos2);
 					}
