@@ -20,11 +20,10 @@ import ru.redserver.coderemover.io.JarManager;
  */
 public class CodeRemover {
 
+	public static final String VERSION = "1.5";
 	public static final ClassPool CLASS_POOL = new ClassPool(true);
 	public static final Logger LOG = Logger.getLogger("CodeRemover");
-
-	// Включает более подробные логи
-	public static final boolean DEEP_LOG = false;
+	public static final boolean DEEP_LOG = false; // Включает более подробные логи
 
 	public void run(String args[]) {
 		Timer timer = new Timer();
@@ -51,7 +50,7 @@ public class CodeRemover {
 
 		// Запуск программы
 		try {
-			LOG.log(Level.INFO, "------ Code Remover ------");
+			LOG.log(Level.INFO, "Code Remover v" + VERSION+" ------");
 
 			// Проверяем входные данные
 			if(args.length < 2) throw new IllegalArgumentException("Слишком мало аргументов: <input file> <output file>");

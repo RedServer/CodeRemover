@@ -1,6 +1,15 @@
 package ru.redserver.coderemover;
 
+import java.util.logging.Level;
 import java.util.regex.Pattern;
+import javassist.CtConstructor;
+import javassist.CtMethod;
+import javassist.bytecode.BadBytecode;
+import javassist.bytecode.CodeAttribute;
+import javassist.bytecode.CodeIterator;
+import javassist.bytecode.ConstPool;
+import javassist.bytecode.InstructionPrinter;
+import javassist.bytecode.MethodInfo;
 
 public final class Utils {
 
@@ -38,6 +47,53 @@ public final class Utils {
 		String parentName = className.substring(0, sepPos);
 		if(packageName != null) parentName = packageName + "." + parentName;
 		return parentName;
+	}
+
+	private static void printBytecode(MethodInfo minfo, StringBuilder sb) {
+		ConstPool pool = minfo.getConstPool();
+		CodeAttribute code = minfo.getCodeAttribute();
+		if(code == null) return;
+
+		CodeIterator iterator = code.iterator();
+		try {
+			while(iterator.hasNext()) {
+				int pos = iterator.next();
+				sb.append(pos).append(": ").append(InstructionPrinter.instructionString(iterator, pos, pool)).append("\n");
+			}
+		} catch (BadBytecode e) {
+			CodeRemover.LOG.log(Level.SEVERE, "Ошибка чтения байт-кода", e);
+		}
+		CodeRemover.LOG.info(sb.toString().trim());
+	}
+
+	/**
+	 * Выводит простой байт-код тела метода
+	 * @param constr Конструктор
+	 */
+	public static void printBytecode(CtConstructor constr) {
+		StringBuilder sb = new StringBuilder();
+		sb.append("Bytecode of constructor: ")
+				.append(constr.getDeclaringClass().getName())
+				.append(".")
+				.append(constr.isClassInitializer() ? MethodInfo.nameClinit : MethodInfo.nameInit)
+				.append(constr.getSignature())
+				.append("\n");
+		printBytecode(constr.getMethodInfo2(), sb);
+	}
+
+	/**
+	 * Выводит простой байт-код тела метода
+	 * @param method Метод
+	 */
+	public static void printBytecode(CtMethod method) {
+		StringBuilder sb = new StringBuilder();
+		sb.append("Bytecode of method: ")
+				.append(method.getDeclaringClass().getName())
+				.append(".")
+				.append(method.getName())
+				.append(method.getSignature())
+				.append("\n");
+		printBytecode(method.getMethodInfo2(), sb);
 	}
 
 }

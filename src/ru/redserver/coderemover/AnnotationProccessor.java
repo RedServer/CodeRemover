@@ -15,6 +15,12 @@ import javassist.CtField;
 import javassist.CtMethod;
 import javassist.NotFoundException;
 import javassist.bytecode.AnnotationsAttribute;
+import javassist.bytecode.BadBytecode;
+import javassist.bytecode.CodeAttribute;
+import javassist.bytecode.CodeIterator;
+import javassist.bytecode.ConstPool;
+import javassist.bytecode.MethodInfo;
+import javassist.bytecode.Opcode;
 
 /**
  * Обрабатывает аннотации
@@ -40,7 +46,7 @@ public final class AnnotationProccessor {
 	 * @throws NotFoundException
 	 * @throws CannotCompileException
 	 */
-	public CtClass processClass(CtClass clazz) throws ClassNotFoundException, NotFoundException, CannotCompileException {
+	public CtClass processClass(CtClass clazz) throws Exception {
 		// Проверяем класс
 		Removable classAnnotation = (Removable)clazz.getAnnotation(Removable.class);
 		if(classAnnotation != null) {
@@ -190,20 +196,15 @@ public final class AnnotationProccessor {
 	 * Проверяет конструкторы
 	 * @param clazz Класс
 	 */
-	private void checkConstructors(CtClass clazz) throws NotFoundException, CannotCompileException {
+	private void checkConstructors(CtClass clazz) throws NotFoundException, CannotCompileException, BadBytecode {
 		// Убираем инициализацию удалённых полей из конструкторов, чтобы не получить NoSuchFieldError
 		if(deletedFields.isEmpty()) return;
-		ConstructorCleaner editor = new ConstructorCleaner(clazz, deletedFields);
 		for(CtConstructor constructor : clazz.getDeclaredConstructors()) {
-			editor.setConstructor(constructor);
-			constructor.instrument(editor);
+			checkConstructor(constructor);
 		}
 		// static конструктор
 		CtConstructor staticConstructor = clazz.getClassInitializer();
-		if(staticConstructor != null) {
-			editor.setConstructor(staticConstructor);
-			staticConstructor.instrument(editor);
-		}
+		if(staticConstructor != null) checkConstructor(staticConstructor);
 
 		// А теперь можно удалить сами поля (если это сделать раньше, можно получить NotFound на этапе чистки конструкторов)
 		for(String fieldname : deletedFields) {
@@ -213,6 +214,37 @@ public final class AnnotationProccessor {
 		}
 
 		deletedFields.clear(); // очищаем для следующего класса
+	}
+
+	private void checkConstructor(CtConstructor constructor) throws BadBytecode {
+		MethodInfo minfo = constructor.getMethodInfo();
+		CodeAttribute code = minfo.getCodeAttribute();
+		if(code == null) return;
+		ConstPool cpool = minfo.getConstPool();
+		CodeIterator it = code.iterator();
+
+		int lastAload0 = -1; // позиция последней инструкции aload_0
+		while(it.hasNext()) {
+			int pos = it.next();
+			int opcode = it.byteAt(pos);
+			if(opcode == Opcode.ALOAD_0) {
+				lastAload0 = pos;
+			} else if(opcode == Opcode.PUTFIELD || opcode == Opcode.PUTSTATIC) {
+				int fieldIndex = it.u16bitAt(pos + 1);
+				String fieldClass = cpool.getFieldrefClassName(fieldIndex);
+				String fieldName = cpool.getFieldrefName(fieldIndex);
+				if(fieldClass.equals(constructor.getDeclaringClass().getName()) && deletedFields.contains(fieldName)) {
+					for(int pos2 = lastAload0; pos2 <= (pos + 2); pos2++) {
+						it.writeByte(Opcode.NOP, pos2);
+					}
+					CodeRemover.LOG.info(String.format("Удалено обращение к удалённому полю '%s' в %s.%s%s",
+							fieldName, constructor.getDeclaringClass().getName(),
+							constructor.isClassInitializer() ? MethodInfo.nameClinit : MethodInfo.nameInit,
+							constructor.getSignature()
+					));
+				}
+			}
+		}
 	}
 
 	/**
