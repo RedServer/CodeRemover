@@ -28,7 +28,7 @@ import javassist.bytecode.Opcode;
  */
 public final class AnnotationProccessor {
 
-	private static final String DATA_SEPARATOR = "<::>";
+	static final String DATA_SEPARATOR = "<::>";
 
 	private final Set<String> deletedIfaces = new HashSet<>(); // удалённые интерфейсы
 	private final Set<String> deletedFields = new HashSet<>(); // удалённые поля
@@ -198,15 +198,20 @@ public final class AnnotationProccessor {
 	 * Проверяет конструкторы
 	 * @param clazz Класс
 	 */
-	private void checkConstructors(CtClass clazz) throws NotFoundException, CannotCompileException, BadBytecode {
+	private void checkConstructors(CtClass clazz) throws NotFoundException, CannotCompileException {
 		// Убираем инициализацию удалённых полей из конструкторов, чтобы не получить NoSuchFieldError
 		if(deletedFields.isEmpty()) return;
+		ConstructorCleaner editor = new ConstructorCleaner(clazz, deletedFields);
 		for(CtConstructor constructor : clazz.getDeclaredConstructors()) {
-			checkConstructor(constructor);
+			editor.setConstructor(constructor);
+			constructor.instrument(editor);
 		}
 		// static конструктор
 		CtConstructor staticConstructor = clazz.getClassInitializer();
-		if(staticConstructor != null) checkConstructor(staticConstructor);
+		if(staticConstructor != null) {
+			editor.setConstructor(staticConstructor);
+			staticConstructor.instrument(editor);
+		}
 
 		// А теперь можно удалить сами поля (если это сделать раньше, можно получить NotFound на этапе чистки конструкторов)
 		for(String field : deletedFields) {
@@ -219,6 +224,8 @@ public final class AnnotationProccessor {
 		deletedFields.clear(); // очищаем для следующего класса
 	}
 
+	// TODO: Пока плохо выполняет свою работу, поэтому лучше не использовать. Требуется доработка.
+	@Deprecated
 	private void checkConstructor(CtConstructor constructor) throws BadBytecode {
 		MethodInfo minfo = constructor.getMethodInfo();
 		CodeAttribute code = minfo.getCodeAttribute();
