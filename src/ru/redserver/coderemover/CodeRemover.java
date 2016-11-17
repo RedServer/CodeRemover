@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.logging.ConsoleHandler;
 import java.util.logging.FileHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -34,15 +33,12 @@ public class CodeRemover {
 			LogFormatter formatter = new LogFormatter();
 			LOG.setUseParentHandlers(false);
 
-			ConsoleHandler consoleHandler = new ConsoleHandler();
-			consoleHandler.setFormatter(formatter);
-
 			if(DEEP_LOG) {
 				FileHandler fileHandler = new FileHandler("coderemover.log", true);
 				fileHandler.setFormatter(formatter);
 				LOG.addHandler(fileHandler);
 			}
-			LOG.addHandler(consoleHandler);
+			LOG.addHandler(new LogHandler());
 		} catch (IOException e) {
 			System.err.println("Logger not configured");
 		}
@@ -50,7 +46,7 @@ public class CodeRemover {
 
 		// Запуск программы
 		try {
-			LOG.log(Level.INFO, "Code Remover v" + VERSION+" ------");
+			LOG.log(Level.INFO, "Code Remover v" + VERSION + " ------");
 
 			// Проверяем входные данные
 			if(args.length < 2) throw new IllegalArgumentException("Слишком мало аргументов: <input file> <output file>");
