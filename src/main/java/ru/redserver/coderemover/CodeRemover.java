@@ -46,12 +46,10 @@ public class CodeRemover {
 
 		// Запуск программы
 		try {
-			LOG.log(Level.INFO, "Code Remover v" + VERSION + " ------");
-
 			// Проверяем входные данные
-			if(args.length < 2) throw new IllegalArgumentException("Слишком мало аргументов: <input file> <output file>");
+			if(args.length < 2) throw new IllegalArgumentException("Too small arguments: <input file> <output file>");
 			File inputFile = new File(args[0]);
-			if(!inputFile.exists() || !inputFile.isFile()) throw new IllegalArgumentException("Файл не существует: " + inputFile);
+			if(!inputFile.exists() || !inputFile.isFile()) throw new IllegalArgumentException("File doesn't exists: " + inputFile);
 
 			File outputFile = new File(args[1]);
 
@@ -60,14 +58,14 @@ public class CodeRemover {
 				LOG.log(Level.INFO, "Output file: {0}", outputFile.getAbsolutePath());
 			}
 
-			if(DEEP_LOG) LOG.log(Level.INFO, "Загрузка списка файлов...");
+			if(DEEP_LOG) LOG.log(Level.INFO, "Loading classes...");
 			// Загружаем Jar файл
 			ClassCollection classCollection = JarManager.loadClassesFromJar(inputFile);
-			if(DEEP_LOG) LOG.log(Level.INFO, "Было загружено {0} Файлов, из них {1} классов.", new Object[]{classCollection.getClasses().size() + classCollection.getExtraFiles().size(), classCollection.getClasses().size()});
+			if(DEEP_LOG) LOG.log(Level.INFO, "Loaded {0} files total, and {1} classes.", new Object[]{classCollection.getClasses().size() + classCollection.getExtraFiles().size(), classCollection.getClasses().size()});
 
 			readTime += timer.flip();
 
-			if(DEEP_LOG) LOG.log(Level.INFO, "Поиск аннотации Removable...");
+			if(DEEP_LOG) LOG.log(Level.INFO, "Searching for @Removable...");
 			AnnotationProccessor processor = new AnnotationProccessor(CodeRemover.CLASS_POOL);
 
 			// Ищем аннотации в загруженных классах
@@ -82,7 +80,7 @@ public class CodeRemover {
 						it.remove();
 					}
 				} catch (ClassNotFoundException | NotFoundException | CannotCompileException ex) {
-					LOG.log(Level.SEVERE, "Произошла ошибка при обработке класса: " + clazz.getName(), ex);
+					LOG.log(Level.SEVERE, "Error occured while processing class: " + clazz.getName(), ex);
 				}
 			}
 
@@ -92,7 +90,7 @@ public class CodeRemover {
 				String parentName = name;
 				while((parentName = Utils.getParentClassName(parentName)) != null) { // проверяем всех родителей, поднимаясь на уровень выше
 					if(deletedClasses.contains(parentName)) {
-						LOG.info("Удалён подкласс: " + name);
+						LOG.info("Removed subclass: " + name);
 						return true;  // удаляем, если родитель удалён
 					}
 				}
@@ -105,7 +103,7 @@ public class CodeRemover {
 				// Записываем новый jar
 				JarManager.writeClasssesToJar(outputFile, classCollection);
 			} catch (CannotCompileException ex) {
-				LOG.log(Level.SEVERE, "Произошла ошибка записи файлов", ex);
+				LOG.log(Level.SEVERE, "Error occured while writing classes", ex);
 			}
 
 			writeTime += timer.flip();
@@ -113,9 +111,9 @@ public class CodeRemover {
 			if(DEEP_LOG)
 				LOG.log(Level.INFO, "Code Remover завершил работу за {0}ms (loggerConfigure {1}ms, read {2}ms, apply {3}ms, write {4}ms).", new Object[]{loggerConfigureTime + readTime + applyTime + writeTime, loggerConfigureTime, readTime, applyTime, writeTime});
 			else
-				LOG.log(Level.INFO, "Code Remover завершил работу за {0}ms.", new Object[]{loggerConfigureTime + readTime + applyTime + writeTime});
+				LOG.log(Level.INFO, "Task done in {0}ms.", new Object[]{loggerConfigureTime + readTime + applyTime + writeTime});
 		} catch (Exception ex) {
-			LOG.log(Level.SEVERE, "Ошибка", ex);
+			LOG.log(Level.SEVERE, "Error occurred", ex);
 			System.exit(1);
 		}
 	}

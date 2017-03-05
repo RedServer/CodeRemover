@@ -61,7 +61,7 @@ public final class Utils {
 				sb.append(pos).append(": ").append(InstructionPrinter.instructionString(iterator, pos, pool)).append("\n");
 			}
 		} catch (BadBytecode e) {
-			CodeRemover.LOG.log(Level.SEVERE, "Ошибка чтения байт-кода", e);
+			CodeRemover.LOG.log(Level.SEVERE, "Failed to read bytecode", e);
 		}
 		CodeRemover.LOG.info(sb.toString().trim());
 	}

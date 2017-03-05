@@ -42,7 +42,7 @@ public final class ConstructorCleaner extends ExprEditor {
 		String fieldSign = faccess.getSignature();
 		if(faccess.getClassName().equals(clazz.getName()) && removeFields.contains(fieldName + AnnotationProccessor.DATA_SEPARATOR + fieldSign)) {
 			faccess.replace(""); // TODO: Чистит плоховато - после изменения, объект присваивается локальной переменной
-			LOG.info(String.format("Удалено обращение к удалённому полю '%s' в: %s.%s%s",
+			LOG.info(String.format("Removed access to deleted field '%s' in: %s.%s%s",
 					fieldName,
 					clazz.getName(),
 					constructor.isClassInitializer() ? MethodInfo.nameClinit : MethodInfo.nameInit,

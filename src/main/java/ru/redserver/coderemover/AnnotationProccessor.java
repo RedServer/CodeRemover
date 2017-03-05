@@ -59,14 +59,14 @@ public final class AnnotationProccessor {
 				} else if(!clazz.isAnnotation() && !clazz.isEnum()) { // ненаследуемые
 					deletedClasses.put(clazz.getName(), clazz.getClassFile2().getSuperclass());
 				}
-				CodeRemover.LOG.info("Удалён " + (isInterface ? "интерфейс" : "класс") + ": " + clazz.getName());
+				CodeRemover.LOG.info("Removed " + (isInterface ? "interface" : "class") + ": " + clazz.getName());
 				return null;
 			} else {
 				// Удаляем аннотацию
 				AnnotationsAttribute attr = (AnnotationsAttribute)clazz.getClassFile().getAttribute(AnnotationsAttribute.invisibleTag);
 				attr.removeAnnotation(Removable.class.getName());
 				clazz.getClassFile().addAttribute(attr);
-				CodeRemover.LOG.info(String.format("Удалена аннотация @%s для класса: %s", Removable.class.getSimpleName(), clazz.getName()));
+				CodeRemover.LOG.info(String.format("Removed annotation @%s from: %s", Removable.class.getSimpleName(), clazz.getName()));
 			}
 		}
 
@@ -99,7 +99,7 @@ public final class AnnotationProccessor {
 			if(mayDeleteInterface(iFaceName)) {
 				isDirty = true;
 				rebuild = true;
-				CodeRemover.LOG.info(String.format("Удалено использование интерфейса %s в %s", iFaceName, clazz.getName()));
+				CodeRemover.LOG.info(String.format("Removed interface usage %s in %s", iFaceName, clazz.getName()));
 			} else {
 				list.add(iFaceName);
 			}
@@ -118,7 +118,7 @@ public final class AnnotationProccessor {
 			clazz.getClassFile2().setSuperclass(superName);
 			clazz.replaceClassName(oldSuper, superName);
 			rebuild = true;
-			CodeRemover.LOG.info(String.format("Изменён родительский класс для %s: %s -> %s", clazz.getName(), oldSuper, superName));
+			CodeRemover.LOG.info(String.format("Changed superclass for %s: %s -> %s", clazz.getName(), oldSuper, superName));
 		}
 	}
 
@@ -143,7 +143,7 @@ public final class AnnotationProccessor {
 					return clazz.getName();
 				}
 			} catch (NotFoundException ex) {
-				if(CodeRemover.DEEP_LOG) CodeRemover.LOG.log(Level.WARNING, "Неизвестный класс", ex);
+				if(CodeRemover.DEEP_LOG) CodeRemover.LOG.log(Level.WARNING, "Unknown class", ex);
 				return className;
 			}
 		}
@@ -164,7 +164,7 @@ public final class AnnotationProccessor {
 					AnnotationsAttribute attr = (AnnotationsAttribute)field.getFieldInfo().getAttribute(AnnotationsAttribute.invisibleTag);
 					attr.removeAnnotation(Removable.class.getName());
 					field.getFieldInfo().addAttribute(attr);
-					CodeRemover.LOG.info(String.format("Удалена аннотация @%s для поля: %s.%s", Removable.class.getSimpleName(), clazz.getName(), field.getName()));
+					CodeRemover.LOG.info(String.format("Removed annotation @%s from field: %s.%s", Removable.class.getSimpleName(), clazz.getName(), field.getName()));
 				}
 			}
 		}
@@ -182,13 +182,13 @@ public final class AnnotationProccessor {
 					// Удаляем метод
 					clazz.removeMethod(method);
 					rebuild = true;
-					CodeRemover.LOG.info("Удалён метод: " + clazz.getName() + "." + method.getName() + method.getSignature());
+					CodeRemover.LOG.info("Removed method: " + clazz.getName() + "." + method.getName() + method.getSignature());
 				} else {
 					// Удаляем аннотацию
 					AnnotationsAttribute attr = (AnnotationsAttribute)method.getMethodInfo().getAttribute(AnnotationsAttribute.invisibleTag);
 					attr.removeAnnotation(Removable.class.getName());
 					method.getMethodInfo().addAttribute(attr);
-					CodeRemover.LOG.info(String.format("Удалена аннотация @%s для метода: %s.%s", Removable.class.getSimpleName(), clazz.getName(), method.getName() + method.getSignature()));
+					CodeRemover.LOG.info(String.format("Removed annotation @%s from method: %s.%s", Removable.class.getSimpleName(), clazz.getName(), method.getName() + method.getSignature()));
 				}
 			}
 		}
@@ -218,7 +218,7 @@ public final class AnnotationProccessor {
 			String[] fieldData = field.split(DATA_SEPARATOR, 2);
 			clazz.removeField(clazz.getDeclaredField(fieldData[0], fieldData[1]));
 			rebuild = true;
-			CodeRemover.LOG.info("Удалено поле: " + clazz.getName() + "." + fieldData[0]);
+			CodeRemover.LOG.info("Removed field: " + clazz.getName() + "." + fieldData[0]);
 		}
 
 		deletedFields.clear(); // очищаем для следующего класса
@@ -248,7 +248,7 @@ public final class AnnotationProccessor {
 					for(int pos2 = lastAload0; pos2 <= (pos + 2); pos2++) {
 						it.writeByte(Opcode.NOP, pos2);
 					}
-					CodeRemover.LOG.info(String.format("Удалено обращение к удалённому полю '%s' в %s.%s%s",
+					CodeRemover.LOG.info(String.format("Removed access to deleted field '%s' in %s.%s%s",
 							fieldName, constructor.getDeclaringClass().getName(),
 							constructor.isClassInitializer() ? MethodInfo.nameClinit : MethodInfo.nameInit,
 							constructor.getSignature()
@@ -270,7 +270,7 @@ public final class AnnotationProccessor {
 			Removable removable = (Removable)clazz.getAnnotation(Removable.class);
 			return (removable != null && removable.remove());
 		} catch (NotFoundException ex) { // Не проверяем классы во внешних библиотеках
-			if(CodeRemover.DEEP_LOG) CodeRemover.LOG.log(Level.WARNING, "Неизвестный интерфейс", ex);
+			if(CodeRemover.DEEP_LOG) CodeRemover.LOG.log(Level.WARNING, "Unknown interface", ex);
 			return false;
 		}
 	}
