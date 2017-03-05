@@ -19,8 +19,8 @@ public final class LogFormatter extends Formatter {
 	public String format(LogRecord record) {
 		date.setTime(record.getMillis());
 		StringBuilder builder = new StringBuilder();
-		builder.append(formatter.format(date));
-		builder.append(" [").append(record.getLevel().toString()).append("] ");
+		builder.append("[").append(formatter.format(date)).append(" ");
+		builder.append(record.getLevel().toString()).append("] ");
 		builder.append(formatMessage(record)).append("\n");
 
 		if(record.getThrown() != null) {
