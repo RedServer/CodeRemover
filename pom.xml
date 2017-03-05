@@ -41,7 +41,7 @@
 					<archive>
 						<manifestEntries>
 							<addClasspath>false</addClasspath>
-							<mainClass>cpw.mods.fml.relauncher.ServerLaunchWrapper</mainClass>
+							<Main-Class>ru.redserver.coderemover.Main</Main-Class>
 						</manifestEntries>
 						<addMavenDescriptor>false</addMavenDescriptor>
 					</archive>
