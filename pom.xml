@@ -22,6 +22,16 @@
 	</dependencies>
 
 	<build>
+		<resources>
+			<!-- Пакуем в архив исходные файлы (документация внутри) -->
+			<resource>
+				<directory>${basedir}/src/main/java</directory>
+				<includes>
+					<include>**/*.java</include>
+				</includes>
+			</resource>
+		</resources>
+
 		<plugins>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
