@@ -21,30 +21,29 @@ public final class JarManager {
 
 	public static ClassCollection loadClassesFromJar(File jar) throws IOException {
 		ClassCollection classCollection = new ClassCollection();
-		JarInputStream jarInputStream = new JarInputStream(new FileInputStream(jar), false);
+		try (JarInputStream jarInputStream = new JarInputStream(new FileInputStream(jar), false)) {
+			JarEntry entry;
+			while((entry = jarInputStream.getNextJarEntry()) != null) {
+				if(entry.isDirectory()) continue;
 
-		JarEntry entry;
-		while((entry = jarInputStream.getNextJarEntry()) != null) {
-			if(entry.isDirectory()) continue;
+				String name = entry.getName();
+				if(name.endsWith(".class")) {
+					CtClass clazz = CodeRemover.CLASS_POOL.makeClass(jarInputStream);
+					classCollection.getClasses().add(clazz);
+				} else {
+					ByteArrayOutputStream temp = new ByteArrayOutputStream(Math.max(8192, jarInputStream.available()));
+					byte[] buffer = new byte[8192];
+					int read;
 
-			String name = entry.getName();
-			if(name.endsWith(".class")) {
-				CtClass clazz = CodeRemover.CLASS_POOL.makeClass(jarInputStream);
-				classCollection.getClasses().add(clazz);
-			} else {
-				ByteArrayOutputStream temp = new ByteArrayOutputStream(Math.max(8192, jarInputStream.available()));
-				byte[] buffer = new byte[8192];
-				int read;
+					while((read = jarInputStream.read(buffer)) >= 0) {
+						temp.write(buffer, 0, read);
+					}
 
-				while((read = jarInputStream.read(buffer)) >= 0) {
-					temp.write(buffer, 0, read);
+					classCollection.getExtraFiles().put(name, temp.toByteArray());
 				}
-
-				classCollection.getExtraFiles().put(name, temp.toByteArray());
 			}
+			classCollection.setManifest(jarInputStream.getManifest());
 		}
-		classCollection.setManifest(jarInputStream.getManifest());
-		jarInputStream.close();
 
 		return classCollection;
 	}
