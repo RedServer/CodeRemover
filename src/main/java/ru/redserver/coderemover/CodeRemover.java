@@ -1,32 +1,26 @@
 package ru.redserver.coderemover;
 
+import ru.redserver.coderemover.io.JarContents;
 import java.io.File;
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.logging.FileHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javassist.CannotCompileException;
-import javassist.ClassPool;
-import javassist.CtClass;
-import javassist.NotFoundException;
 import ru.redserver.coderemover.io.JarManager;
 
 /**
  * Удаляет методы, поля, классы, помеченные аннотацией Removable
  * @author Andrey, Nuclear
  */
-public class CodeRemover {
+public final class CodeRemover {
 
 	public static final String VERSION = "1.5";
-	public static final ClassPool CLASS_POOL = new ClassPool(true);
 	public static final Logger LOG = Logger.getLogger("CodeRemover");
 	public static final boolean DEEP_LOG = false; // Включает более подробные логи
 
 	public void run(String args[]) {
 		Timer timer = new Timer();
-		int loggerConfigureTime = 0, readTime = 0, applyTime = 0, writeTime = 0;
+		int readTime = 0, applyTime = 0, writeTime = 0;
 
 		// Настраиваем Logger
 		try {
@@ -42,7 +36,6 @@ public class CodeRemover {
 		} catch (IOException e) {
 			System.err.println("Logger not configured");
 		}
-		loggerConfigureTime += timer.flip();
 
 		// Запуск программы
 		try {
@@ -58,60 +51,25 @@ public class CodeRemover {
 				LOG.log(Level.INFO, "Output file: {0}", outputFile.getAbsolutePath());
 			}
 
-			if(DEEP_LOG) LOG.log(Level.INFO, "Loading classes...");
 			// Загружаем Jar файл
-			ClassCollection classCollection = JarManager.loadClassesFromJar(inputFile);
-			if(DEEP_LOG) LOG.log(Level.INFO, "Loaded {0} files total, and {1} classes.", new Object[]{classCollection.getClasses().size() + classCollection.getExtraFiles().size(), classCollection.getClasses().size()});
+			JarContents contents = JarManager.loadClassesFromJar(inputFile);
+			LOG.log(Level.INFO, "Loaded {0} classes and {1} resources.", new Object[]{contents.classes.size(), contents.resources.size()});
 
 			readTime += timer.flip();
 
-			if(DEEP_LOG) LOG.log(Level.INFO, "Searching for @Removable...");
-			AnnotationProccessor processor = new AnnotationProccessor(CodeRemover.CLASS_POOL);
-
-			// Ищем аннотации в загруженных классах
-			HashSet<String> deletedClasses = new HashSet<>();
-
-			for(Iterator<CtClass> it = classCollection.getClasses().iterator(); it.hasNext();) {
-				CtClass clazz = it.next();
-				try {
-					if(processor.processClass(clazz) == null) {
-						String name = clazz.getName();
-						if(!Utils.isPartOfClass(name)) deletedClasses.add(name);
-						it.remove();
-					}
-				} catch (ClassNotFoundException | NotFoundException | CannotCompileException ex) {
-					LOG.log(Level.SEVERE, "Error occured while processing class: " + clazz.getName(), ex);
-				}
-			}
-
-			// Удаляем вложенные классы и подклассы
-			classCollection.getClasses().removeIf((CtClass clazz) -> {
-				String name = clazz.getName();
-				String parentName = name;
-				while((parentName = Utils.getParentClassName(parentName)) != null) { // проверяем всех родителей, поднимаясь на уровень выше
-					if(deletedClasses.contains(parentName)) {
-						LOG.info("Removed subclass: " + name);
-						return true;  // удаляем, если родитель удалён
-					}
-				}
-				return false;
-			});
+			AnnotationProccessor processor = new AnnotationProccessor();
+			processor.removeClasses(contents);
+			processor.processClasses(contents);
 
 			applyTime += timer.flip();
-
-			try {
-				// Записываем новый jar
-				JarManager.writeClasssesToJar(outputFile, classCollection);
-			} catch (CannotCompileException ex) {
-				LOG.log(Level.SEVERE, "Error occured while writing classes", ex);
-			}
-
+			JarManager.writeClasssesToJar(outputFile, contents);
 			writeTime += timer.flip();
 
-			if(DEEP_LOG)
-				LOG.log(Level.INFO, "Code Remover завершил работу за {0}ms (loggerConfigure {1}ms, read {2}ms, apply {3}ms, write {4}ms).", new Object[]{loggerConfigureTime + readTime + applyTime + writeTime, loggerConfigureTime, readTime, applyTime, writeTime});
-			else
-				LOG.log(Level.INFO, "Task done in {0}ms.", new Object[]{loggerConfigureTime + readTime + applyTime + writeTime});
+			if(DEEP_LOG) {
+				LOG.log(Level.INFO, "Code Remover завершил работу за {0}ms (read {1}ms, apply {2}ms, write {3}ms).", new Object[]{readTime + applyTime + writeTime, readTime, applyTime, writeTime});
+			} else {
+				LOG.log(Level.INFO, "Task done in {0}ms.", new Object[]{readTime + applyTime + writeTime});
+			}
 		} catch (Exception ex) {
 			LOG.log(Level.SEVERE, "Error occurred", ex);
 			System.exit(1);

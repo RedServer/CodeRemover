@@ -15,9 +15,9 @@
 
 	<dependencies>
 		<dependency>
-			<groupId>org.javassist</groupId>
-			<artifactId>javassist</artifactId>
-			<version>3.21.0-GA</version>
+			<groupId>org.ow2.asm</groupId>
+			<artifactId>asm-all</artifactId>
+			<version>5.2</version>
 		</dependency>
 	</dependencies>
 
@@ -63,12 +63,6 @@
 				</executions>
 				<configuration>
 					<createDependencyReducedPom>false</createDependencyReducedPom>
-					<artifactSet>
-						<!-- Включаем в список только наш проект, иначе maven упакует все зависимости -->
-						<includes>
-							<include>org.javassist:javassist</include>
-						</includes>
-					</artifactSet>
 					<filters>
 						<filter>
 							<artifact>*:*</artifact>

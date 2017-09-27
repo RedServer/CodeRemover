@@ -5,71 +5,79 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.HashSet;
+import java.io.InputStream;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
 import java.util.jar.JarOutputStream;
-import javassist.CannotCompileException;
-import javassist.CtClass;
-import ru.redserver.coderemover.ClassCollection;
-import ru.redserver.coderemover.CodeRemover;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.tree.ClassNode;
 
 public final class JarManager {
 
-	public static ClassCollection loadClassesFromJar(File jar) throws IOException {
-		ClassCollection classCollection = new ClassCollection();
+	private static final Set<String> dirs = new LinkedHashSet<>();
+
+	public static JarContents loadClassesFromJar(File jar) throws IOException {
+		JarContents classCollection = new JarContents();
 		try (JarInputStream jarInputStream = new JarInputStream(new FileInputStream(jar), false)) {
 			JarEntry entry;
 			while((entry = jarInputStream.getNextJarEntry()) != null) {
 				if(entry.isDirectory()) continue;
 
 				String name = entry.getName();
+				byte[] bytes = readResource(jarInputStream);
 				if(name.endsWith(".class")) {
-					CtClass clazz = CodeRemover.CLASS_POOL.makeClass(jarInputStream);
-					classCollection.getClasses().add(clazz);
+					ClassReader reader = new ClassReader(bytes);
+					ClassNode node = new ClassNode();
+					reader.accept(node, 0);
+					classCollection.classes.put(node.name, node);
 				} else {
-					ByteArrayOutputStream temp = new ByteArrayOutputStream(Math.max(8192, jarInputStream.available()));
-					byte[] buffer = new byte[8192];
-					int read;
-
-					while((read = jarInputStream.read(buffer)) >= 0) {
-						temp.write(buffer, 0, read);
-					}
-
-					classCollection.getExtraFiles().put(name, temp.toByteArray());
+					classCollection.resources.put(name, bytes);
 				}
 			}
-			classCollection.setManifest(jarInputStream.getManifest());
+			classCollection.manifest = jarInputStream.getManifest();
 		}
 
 		return classCollection;
 	}
 
-	public static void writeClasssesToJar(File jar, ClassCollection classCollection) throws IOException, CannotCompileException {
+	private static byte[] readResource(InputStream stream) throws IOException {
+		ByteArrayOutputStream temp = new ByteArrayOutputStream(Math.max(8192, stream.available()));
+		byte[] buffer = new byte[8192];
+		int read;
+		while((read = stream.read(buffer)) >= 0) {
+			temp.write(buffer, 0, read);
+		}
+		return temp.toByteArray();
+	}
 
-		Set<String> dirs = new HashSet<>();
+	public static void writeClasssesToJar(File jar, JarContents classCollection) throws IOException {
+		dirs.clear();
 		try (JarOutputStream jarOutputStream = new JarOutputStream(new FileOutputStream(jar))) {
-			if(classCollection.getManifest() != null) {
-				addDirectories(JarFile.MANIFEST_NAME, dirs);
+			if(classCollection.manifest != null) {
+				addDirectories(JarFile.MANIFEST_NAME);
 				jarOutputStream.putNextEntry(new JarEntry(JarFile.MANIFEST_NAME));
-				classCollection.getManifest().write(jarOutputStream);
+				classCollection.manifest.write(jarOutputStream);
 				jarOutputStream.closeEntry();
 			}
 
-			for(CtClass clazz : classCollection.getClasses()) {
-				String classPath = clazz.getName().replace('.', '/');
-				addDirectories(classPath, dirs);
+			for(ClassNode clazz : classCollection.classes.values()) {
+				addDirectories(clazz.name);
 
-				jarOutputStream.putNextEntry(new JarEntry(classPath.concat(".class")));
-				jarOutputStream.write(clazz.toBytecode());
+				ClassWriter writer = new ClassWriter(0);
+				clazz.accept(writer);
+
+				jarOutputStream.putNextEntry(new JarEntry(clazz.name.concat(".class")));
+				jarOutputStream.write(writer.toByteArray());
 				jarOutputStream.closeEntry();
 			}
 
-			for(Map.Entry<String, byte[]> entry : classCollection.getExtraFiles().entrySet()) {
-				addDirectories(entry.getKey(), dirs);
+			for(Map.Entry<String, byte[]> entry : classCollection.resources.entrySet()) {
+				addDirectories(entry.getKey());
 
 				jarOutputStream.putNextEntry(new JarEntry(entry.getKey()));
 				jarOutputStream.write(entry.getValue());
@@ -85,12 +93,12 @@ public final class JarManager {
 		}
 	}
 
-	private static void addDirectories(String filePath, Set<String> dirs) {
+	private static void addDirectories(String filePath) {
 		int i = filePath.lastIndexOf('/');
 		if(i >= 0) {
 			String dirPath = filePath.substring(0, i);
 			if(dirs.add(dirPath)) {
-				addDirectories(dirPath, dirs);
+				addDirectories(dirPath);
 			}
 		}
 	}

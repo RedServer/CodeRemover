@@ -1,26 +1,25 @@
 package ru.redserver.coderemover;
 
-import java.util.ArrayList;
+import java.lang.reflect.Modifier;
+import ru.redserver.coderemover.io.JarContents;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.Level;
-import javassist.CannotCompileException;
-import javassist.ClassPool;
-import javassist.CtClass;
-import javassist.CtConstructor;
-import javassist.CtField;
-import javassist.CtMethod;
-import javassist.NotFoundException;
-import javassist.bytecode.AnnotationsAttribute;
-import javassist.bytecode.BadBytecode;
-import javassist.bytecode.CodeAttribute;
-import javassist.bytecode.CodeIterator;
-import javassist.bytecode.ConstPool;
-import javassist.bytecode.MethodInfo;
-import javassist.bytecode.Opcode;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.AnnotationNode;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.FieldNode;
+import org.objectweb.asm.tree.InsnNode;
+import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TypeInsnNode;
 
 /**
  * Обрабатывает аннотации
@@ -29,96 +28,100 @@ import javassist.bytecode.Opcode;
 public final class AnnotationProccessor {
 
 	static final String DATA_SEPARATOR = "<::>";
+	static final String REMOVABLE_DESC = Type.getDescriptor(Removable.class);
 
 	private final Set<String> deletedIfaces = new HashSet<>(); // удалённые интерфейсы
 	private final Set<String> deletedFields = new HashSet<>(); // удалённые поля
 	private final Map<String, String> deletedClasses = new HashMap<>(); // удалённые классы (ключ - имя, значение - имя родителя)
-	private final ClassPool pool;
-	private boolean rebuild = false;
 
-	public AnnotationProccessor(ClassPool pool) {
-		this.pool = pool;
-	}
-
-	/**
-	 * Обрабатывает аннотацию Removable в переданном классе
-	 * @param clazz Класс
-	 * @return Возвращает обработанный класс. Если класс был удалён, то возвращает null
-	 * @throws ClassNotFoundException
-	 * @throws NotFoundException
-	 * @throws CannotCompileException
-	 */
-	public CtClass processClass(CtClass clazz) throws Exception {
-		// Проверяем класс
-		Removable classAnnotation = (Removable)clazz.getAnnotation(Removable.class);
-		if(classAnnotation != null) {
-			if(classAnnotation.remove()) {
-				boolean isInterface = (clazz.isInterface() && !clazz.isAnnotation());
-				if(isInterface) {
-					deletedIfaces.add(clazz.getName());
-				} else if(!clazz.isAnnotation() && !clazz.isEnum()) { // ненаследуемые
-					deletedClasses.put(clazz.getName(), clazz.getClassFile2().getSuperclass());
+	public void removeClasses(JarContents contents) {
+		Iterator<Map.Entry<String, ClassNode>> it = contents.classes.entrySet().iterator();
+		while(it.hasNext()) {
+			ClassNode node = it.next().getValue();
+			if(checkRemovable(node.invisibleAnnotations, true)) {
+				if(Modifier.isInterface(node.access)) {
+					deletedIfaces.add(node.name);
+				} else {
+					deletedClasses.put(node.name, node.superName);
 				}
-				CodeRemover.LOG.info("Removed " + (isInterface ? "interface" : "class") + ": " + clazz.getName());
-				return null;
-			} else {
-				// Удаляем аннотацию
-				AnnotationsAttribute attr = (AnnotationsAttribute)clazz.getClassFile().getAttribute(AnnotationsAttribute.invisibleTag);
-				attr.removeAnnotation(Removable.class.getName());
-				clazz.getClassFile().addAttribute(attr);
-				CodeRemover.LOG.info(String.format("Removed annotation @%s from: %s", Removable.class.getSimpleName(), clazz.getName()));
+				it.remove();
+				CodeRemover.LOG.info("Removed " + (Modifier.isInterface(node.access) ? "interface" : "class") + ": " + Utils.normalizeName(node.name));
 			}
 		}
 
-		checkInterfaces(clazz);
-		checkSuperclass(clazz);
-		checkFields(clazz);
-		checkMethods(clazz);
-		checkConstructors(clazz);
+		// Удаляем вложенные классы и подклассы
+		contents.classes.entrySet().removeIf((Map.Entry<String, ClassNode> entry) -> {
+			String name = entry.getValue().name;
+			String parentName = name;
+			while((parentName = Utils.getParentClassName(parentName)) != null) { // проверяем всех родителей, поднимаясь на уровень выше
+				if(deletedClasses.containsKey(parentName)) {
+					CodeRemover.LOG.info("Removed subclass: " + Utils.normalizeName(name));
+					return true;  // удаляем, если родитель удалён
+				}
+			}
+			return false;
+		});
+	}
 
-		if(rebuild) {
-			clazz.rebuildClassFile();
-			clazz.freeze();
-			rebuild = false;
+	public void processClasses(JarContents contents) {
+		for(ClassNode node : contents.classes.values()) {
+			deletedFields.clear();
+			checkInterfaces(node);
+			checkSuperclass(node);
+			checkFields(node);
+			checkMethods(node);
 		}
-
-		return clazz;
 	}
 
 	/**
 	 * Проверяет интерфейсы класса и убирает те, которые были удалены
 	 * @param clazz Класс
 	 */
-	private void checkInterfaces(CtClass clazz) throws ClassNotFoundException, NotFoundException {
-		String[] ifaces = clazz.getClassFile2().getInterfaces(); // Получаем названия классов интерфейсов (так нам не потребуются зависимые библиотеки)
-		if(ifaces.length == 0) return;
-		List<String> list = new ArrayList<>(); // оставшиеся интерфейсы
+	private void checkInterfaces(ClassNode clazz) {
+		Iterator<String> it = clazz.interfaces.iterator();
 
-		boolean isDirty = false; // флаг изменений
-		for(String iFaceName : ifaces) {
-			if(mayDeleteInterface(iFaceName)) {
-				isDirty = true;
-				rebuild = true;
-				CodeRemover.LOG.info(String.format("Removed interface usage %s in %s", iFaceName, clazz.getName()));
-			} else {
-				list.add(iFaceName);
+		while(it.hasNext()) {
+			String iFace = it.next();
+			if(deletedIfaces.contains(iFace)) {
+				it.remove();
+				CodeRemover.LOG.info(String.format("Removed interface usage %s in %s", iFace, clazz.name));
 			}
 		}
-		if(isDirty) clazz.getClassFile2().setInterfaces(list.toArray(new String[list.size()]));
 	}
 
 	/**
 	 * Проверяет, были ли удалены родительские классы и перенаправлят так, чтобы восстановить цепочку наследования
 	 * @param clazz Класс
 	 */
-	private void checkSuperclass(CtClass clazz) throws ClassNotFoundException, CannotCompileException {
-		String oldSuper = clazz.getClassFile2().getSuperclass();
+	private void checkSuperclass(ClassNode clazz) {
+		String oldSuper = clazz.superName;
 		String superName = getSuperclass(oldSuper);
 		if(!oldSuper.equals(superName)) {
-			clazz.getClassFile2().setSuperclass(superName);
-			clazz.replaceClassName(oldSuper, superName);
-			rebuild = true;
-			CodeRemover.LOG.info(String.format("Changed superclass for %s: %s -> %s", clazz.getName(), oldSuper, superName));
+			clazz.superName = superName;
+
+			// Исправляем случаи использования в методах
+			for(MethodNode method : (List<MethodNode>)clazz.methods) {
+				ListIterator<AbstractInsnNode> itr = method.instructions.iterator();
+				while(itr.hasNext()) {
+					AbstractInsnNode insn = itr.next();
+					switch(insn.getType()) {
+						case AbstractInsnNode.FIELD_INSN:
+							FieldInsnNode faccess = (FieldInsnNode)insn;
+							if(faccess.owner.equals(oldSuper)) faccess.owner = superName;
+							break;
+						case AbstractInsnNode.METHOD_INSN:
+							MethodInsnNode maccess = (MethodInsnNode)insn;
+							if(maccess.owner.equals(oldSuper)) maccess.owner = superName;
+							break;
+						case AbstractInsnNode.TYPE_INSN:
+							TypeInsnNode type = (TypeInsnNode)insn;
+							if(type.desc.equals(oldSuper)) type.desc = superName;
+							break;
+					}
+				}
+			}
+
+			CodeRemover.LOG.info(String.format("Changed superclass for %s: %s -> %s", Utils.normalizeName(clazz.name), Utils.normalizeName(oldSuper), Utils.normalizeName(superName)));
 		}
 	}
 
@@ -127,45 +130,26 @@ public final class AnnotationProccessor {
 	 * @param className Старый родительский класс
 	 * @return Новый родительский класс
 	 */
-	private String getSuperclass(String className) throws ClassNotFoundException {
-		if(className.equals("java.lang.Object")) return className;
+	private String getSuperclass(String className) {
+		if(className == null || className.equals("java/lang/Object")) return className;
 
 		String deletedSuper = deletedClasses.get(className);
-		if(deletedSuper != null) {
-			return getSuperclass(deletedSuper);
-		} else {
-			try {
-				CtClass clazz = pool.get(className);
-				Removable removable = (Removable)clazz.getAnnotation(Removable.class);
-				if(removable != null && removable.remove()) {
-					return getSuperclass(clazz.getClassFile2().getSuperclass());
-				} else { // TODO TheAndrey: Не уверен в правильности логики здесь, но работает это пока как надо
-					return clazz.getName();
-				}
-			} catch (NotFoundException ex) {
-				if(CodeRemover.DEEP_LOG) CodeRemover.LOG.log(Level.WARNING, "Unknown class", ex);
-				return className;
-			}
-		}
+		if(deletedSuper != null) return getSuperclass(deletedSuper);
+		return className;
 	}
 
 	/**
 	 * Проверяет поля
 	 * @param clazz Класс
 	 */
-	private void checkFields(CtClass clazz) throws ClassNotFoundException {
-		for(CtField field : clazz.getDeclaredFields()) {
-			Removable fieldAnnotation = (Removable)field.getAnnotation(Removable.class);
-			if(fieldAnnotation != null) {
-				if(fieldAnnotation.remove()) {
-					deletedFields.add(field.getName() + DATA_SEPARATOR + field.getSignature());
-				} else {
-					// Удаляем аннотацию
-					AnnotationsAttribute attr = (AnnotationsAttribute)field.getFieldInfo().getAttribute(AnnotationsAttribute.invisibleTag);
-					attr.removeAnnotation(Removable.class.getName());
-					field.getFieldInfo().addAttribute(attr);
-					CodeRemover.LOG.info(String.format("Removed annotation @%s from field: %s.%s", Removable.class.getSimpleName(), clazz.getName(), field.getName()));
-				}
+	private void checkFields(ClassNode clazz) {
+		Iterator<FieldNode> it = clazz.fields.iterator();
+		while(it.hasNext()) {
+			FieldNode field = it.next();
+			if(checkRemovable(field.invisibleAnnotations, true)) {
+				deletedFields.add(field.name + DATA_SEPARATOR + field.desc);
+				it.remove();
+				CodeRemover.LOG.info("Removed field: " + Utils.normalizeName(clazz.name) + "." + field.name);
 			}
 		}
 	}
@@ -174,105 +158,59 @@ public final class AnnotationProccessor {
 	 * Проверяет методы
 	 * @param clazz Класс
 	 */
-	private void checkMethods(CtClass clazz) throws ClassNotFoundException, NotFoundException {
-		for(CtMethod method : clazz.getDeclaredMethods()) {
-			Removable methodAnnotation = (Removable)method.getAnnotation(Removable.class);
-			if(methodAnnotation != null) {
-				if(methodAnnotation.remove()) {
-					// Удаляем метод
-					clazz.removeMethod(method);
-					rebuild = true;
-					CodeRemover.LOG.info("Removed method: " + clazz.getName() + "." + method.getName() + method.getSignature());
-				} else {
-					// Удаляем аннотацию
-					AnnotationsAttribute attr = (AnnotationsAttribute)method.getMethodInfo().getAttribute(AnnotationsAttribute.invisibleTag);
-					attr.removeAnnotation(Removable.class.getName());
-					method.getMethodInfo().addAttribute(attr);
-					CodeRemover.LOG.info(String.format("Removed annotation @%s from method: %s.%s", Removable.class.getSimpleName(), clazz.getName(), method.getName() + method.getSignature()));
-				}
-			}
-		}
-	}
-
-	/**
-	 * Проверяет конструкторы
-	 * @param clazz Класс
-	 */
-	private void checkConstructors(CtClass clazz) throws NotFoundException, CannotCompileException {
-		// Убираем инициализацию удалённых полей из конструкторов, чтобы не получить NoSuchFieldError
-		if(deletedFields.isEmpty()) return;
-		ConstructorCleaner editor = new ConstructorCleaner(clazz, deletedFields);
-		for(CtConstructor constructor : clazz.getDeclaredConstructors()) {
-			editor.setConstructor(constructor);
-			constructor.instrument(editor);
-		}
-		// static конструктор
-		CtConstructor staticConstructor = clazz.getClassInitializer();
-		if(staticConstructor != null) {
-			editor.setConstructor(staticConstructor);
-			staticConstructor.instrument(editor);
-		}
-
-		// А теперь можно удалить сами поля (если это сделать раньше, можно получить NotFound на этапе чистки конструкторов)
-		for(String field : deletedFields) {
-			String[] fieldData = field.split(DATA_SEPARATOR, 2);
-			clazz.removeField(clazz.getDeclaredField(fieldData[0], fieldData[1]));
-			rebuild = true;
-			CodeRemover.LOG.info("Removed field: " + clazz.getName() + "." + fieldData[0]);
-		}
-
-		deletedFields.clear(); // очищаем для следующего класса
-	}
-
-	// TODO: Пока плохо выполняет свою работу, поэтому лучше не использовать. Требуется доработка.
-	@Deprecated
-	private void checkConstructor(CtConstructor constructor) throws BadBytecode {
-		MethodInfo minfo = constructor.getMethodInfo();
-		CodeAttribute code = minfo.getCodeAttribute();
-		if(code == null) return;
-		ConstPool cpool = minfo.getConstPool();
-		CodeIterator it = code.iterator();
-
-		int lastAload0 = -1; // позиция последней инструкции aload_0
+	private void checkMethods(ClassNode clazz) {
+		Iterator<MethodNode> it = clazz.methods.iterator();
 		while(it.hasNext()) {
-			int pos = it.next();
-			int opcode = it.byteAt(pos);
-			if(opcode == Opcode.ALOAD_0) {
-				lastAload0 = pos;
-			} else if(opcode == Opcode.PUTFIELD || opcode == Opcode.PUTSTATIC) {
-				int fieldIndex = it.u16bitAt(pos + 1);
-				String fieldClass = cpool.getFieldrefClassName(fieldIndex);
-				String fieldName = cpool.getFieldrefName(fieldIndex);
-				String fieldSign = cpool.getFieldrefType(fieldIndex);
-				if(fieldClass.equals(constructor.getDeclaringClass().getName()) && deletedFields.contains(fieldName + DATA_SEPARATOR + fieldSign)) {
-					for(int pos2 = lastAload0; pos2 <= (pos + 2); pos2++) {
-						it.writeByte(Opcode.NOP, pos2);
+			MethodNode method = it.next();
+
+			// Убираем случаи использования удалённых полей в конструкторах (присвоение)
+			if(method.name.equals("<init>") || method.name.equals("<clinit>")) {
+				ListIterator<AbstractInsnNode> itr = method.instructions.iterator();
+				while(itr.hasNext()) {
+					AbstractInsnNode insn = itr.next();
+					if(insn.getOpcode() == Opcodes.PUTFIELD || insn.getOpcode() == Opcodes.PUTSTATIC) {
+						FieldInsnNode faccess = (FieldInsnNode)insn;
+						if(deletedFields.contains(faccess.name + DATA_SEPARATOR + faccess.desc)) {
+							itr.set(new InsnNode(Opcodes.POP));
+							CodeRemover.LOG.info("Removed field '" + faccess.name + "' usage in: " + Utils.normalizeName(clazz.name) + "." + method.name + method.desc);
+						}
 					}
-					CodeRemover.LOG.info(String.format("Removed access to deleted field '%s' in %s.%s%s",
-							fieldName, constructor.getDeclaringClass().getName(),
-							constructor.isClassInitializer() ? MethodInfo.nameClinit : MethodInfo.nameInit,
-							constructor.getSignature()
-					));
 				}
+			} else if(checkRemovable(method.invisibleAnnotations, true)) {
+				it.remove();
+				CodeRemover.LOG.info("Removed method: " + Utils.normalizeName(clazz.name) + "." + method.name + method.desc);
 			}
 		}
 	}
 
 	/**
-	 * Проверяет, нужно ли удалять интерфейс
-	 * @param className Полное имя клсасаа интерфейса
-	 * @return Результат
+	 * Проверяет наличие аннотации
+	 * @param annotations Список аннотаций
+	 * @param removeAnnotation Можно ли удалить аннотацию?
+	 * @return true - если элемент помечен для удаления
 	 */
-	private boolean mayDeleteInterface(String className) throws ClassNotFoundException {
-		if(deletedIfaces.contains(className)) return true;
-		try {
-			CtClass clazz = pool.get(className);
-			Removable removable = (Removable)clazz.getAnnotation(Removable.class);
-			return (removable != null && removable.remove());
-		} catch (NotFoundException ex) { // Не проверяем классы во внешних библиотеках
-			if(CodeRemover.DEEP_LOG) CodeRemover.LOG.log(Level.WARNING, "Unknown interface", ex);
-			return false;
+	public static boolean checkRemovable(List<AnnotationNode> annotations, boolean removeAnnotation) {
+		if(annotations != null && !annotations.isEmpty()) {
+			Iterator<AnnotationNode> it = annotations.iterator();
+			while(it.hasNext()) {
+				AnnotationNode node = it.next();
+				if(node.desc.equals(REMOVABLE_DESC) && !node.values.isEmpty()) {
+					if(node.values.size() % 2 != 0) throw new InternalError("Bad AnnotationNode values count: " + node.values.size()); // Число должно быть чётным
+
+					for(int i = 0; i < node.values.size(); i += 2) {
+						String key = (String)node.values.get(i);
+						Object value = node.values.get(i + 1);
+
+						if(key.equals("remove")) {
+							boolean remove = (boolean)value;
+							if(!remove && removeAnnotation) it.remove(); // удаляем аннотацию
+							return remove;
+						}
+					}
+				}
+			}
 		}
+		return false;
 	}
 
 }
