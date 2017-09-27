@@ -20,6 +20,7 @@ import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
+import org.objectweb.asm.tree.VarInsnNode;
 
 /**
  * Обрабатывает аннотации
@@ -28,11 +29,27 @@ import org.objectweb.asm.tree.TypeInsnNode;
 public final class AnnotationProccessor {
 
 	static final String DATA_SEPARATOR = "<::>";
+	static final String OBJECT_CONSTRUCTOR = "<init>";
+	static final String STATIC_CONSTRUCTOR = "<clinit>";
 	static final String REMOVABLE_DESC = Type.getDescriptor(Removable.class);
+	static final Set<Integer> PRIMITIVE_OPCODES = new HashSet<>();
 
 	private final Set<String> deletedIfaces = new HashSet<>(); // удалённые интерфейсы
 	private final Set<String> deletedFields = new HashSet<>(); // удалённые поля
 	private final Map<String, String> deletedClasses = new HashMap<>(); // удалённые классы (ключ - имя, значение - имя родителя)
+
+	static {
+		PRIMITIVE_OPCODES.add(Opcodes.ACONST_NULL);
+		PRIMITIVE_OPCODES.add(Opcodes.LDC);
+		PRIMITIVE_OPCODES.add(Opcodes.SIPUSH); // int, long, short
+		PRIMITIVE_OPCODES.add(Opcodes.BIPUSH); // byte
+		PRIMITIVE_OPCODES.add(Opcodes.ICONST_0); // 0, false
+		PRIMITIVE_OPCODES.add(Opcodes.ICONST_1); // 1, true
+		PRIMITIVE_OPCODES.add(Opcodes.ICONST_2); // 2
+		PRIMITIVE_OPCODES.add(Opcodes.ICONST_3); // 3
+		PRIMITIVE_OPCODES.add(Opcodes.ICONST_4); // 4
+		PRIMITIVE_OPCODES.add(Opcodes.ICONST_5); // 5
+	}
 
 	public void removeClasses(JarContents contents) {
 		Iterator<Map.Entry<String, ClassNode>> it = contents.classes.entrySet().iterator();
@@ -164,21 +181,56 @@ public final class AnnotationProccessor {
 			MethodNode method = it.next();
 
 			// Убираем случаи использования удалённых полей в конструкторах (присвоение)
-			if(method.name.equals("<init>") || method.name.equals("<clinit>")) {
-				ListIterator<AbstractInsnNode> itr = method.instructions.iterator();
-				while(itr.hasNext()) {
-					AbstractInsnNode insn = itr.next();
-					if(insn.getOpcode() == Opcodes.PUTFIELD || insn.getOpcode() == Opcodes.PUTSTATIC) {
-						FieldInsnNode faccess = (FieldInsnNode)insn;
-						if(deletedFields.contains(faccess.name + DATA_SEPARATOR + faccess.desc)) {
-							itr.set(new InsnNode(Opcodes.POP));
-							CodeRemover.LOG.info("Removed field '" + faccess.name + "' usage in: " + Utils.normalizeName(clazz.name) + "." + method.name + method.desc);
-						}
-					}
-				}
+			if(method.name.equals(OBJECT_CONSTRUCTOR) || method.name.equals(STATIC_CONSTRUCTOR)) {
+				this.checkConstructor(clazz, method);
 			} else if(checkRemovable(method.invisibleAnnotations, true)) {
 				it.remove();
 				CodeRemover.LOG.info("Removed method: " + Utils.normalizeName(clazz.name) + "." + method.name + method.desc);
+			}
+		}
+	}
+
+	/**
+	 * Удаляет случаи использования удалённых полей в конструкторе
+	 * @param clazz Класс
+	 * @param method Метод
+	 */
+	private void checkConstructor(ClassNode clazz, MethodNode method) {
+		ListIterator<AbstractInsnNode> itr = method.instructions.iterator();
+		final boolean isStatic = method.name.equals(STATIC_CONSTRUCTOR);
+
+		while(itr.hasNext()) {
+			AbstractInsnNode insn = itr.next();
+			if(insn.getOpcode() == Opcodes.PUTFIELD || insn.getOpcode() == Opcodes.PUTSTATIC) {
+				FieldInsnNode faccess = (FieldInsnNode)insn;
+				if(deletedFields.contains(faccess.name + DATA_SEPARATOR + faccess.desc)) {
+
+					boolean canRemovePrevious = false;
+					boolean removeAloadThis = false;
+					AbstractInsnNode valueLoadInsn = insn.getPrevious();
+					if(valueLoadInsn != null) {
+						canRemovePrevious = PRIMITIVE_OPCODES.contains(valueLoadInsn.getOpcode());
+						if(!isStatic) {
+							AbstractInsnNode aload = valueLoadInsn.getPrevious();
+							removeAloadThis = (aload != null && aload.getOpcode() == Opcodes.ALOAD && ((VarInsnNode)aload).var == 0);
+							if(!removeAloadThis) throw new InternalError("Can't find 'aload_0'");
+						}
+					}
+
+					if(canRemovePrevious) {
+						itr.remove(); // putfield
+						itr.previous();
+						itr.remove(); // переменная
+						if(removeAloadThis) {
+							itr.previous();
+							itr.remove(); // this
+						}
+					} else {
+						itr.set(new InsnNode(Opcodes.POP)); // для переменной
+						if(!isStatic) itr.add(new InsnNode(Opcodes.POP)); // для this
+					}
+					CodeRemover.LOG.info("Removed field '" + faccess.name + "' usage in: " + Utils.normalizeName(clazz.name) + "." + method.name + method.desc);
+				}
 			}
 		}
 	}
