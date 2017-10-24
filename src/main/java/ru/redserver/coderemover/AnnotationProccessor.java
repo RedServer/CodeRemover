@@ -62,7 +62,7 @@ public final class AnnotationProccessor {
 					deletedClasses.put(node.name, node.superName);
 				}
 				it.remove();
-				CodeRemover.LOG.info("Removed " + (Modifier.isInterface(node.access) ? "interface" : "class") + ": " + Utils.normalizeName(node.name));
+				SimpleLogger.instance.info("Removed " + (Modifier.isInterface(node.access) ? "interface" : "class") + ": " + Utils.normalizeName(node.name));
 			}
 		}
 
@@ -72,7 +72,7 @@ public final class AnnotationProccessor {
 			String parentName = name;
 			while((parentName = Utils.getParentClassName(parentName)) != null) { // проверяем всех родителей, поднимаясь на уровень выше
 				if(deletedClasses.containsKey(parentName)) {
-					CodeRemover.LOG.info("Removed subclass: " + Utils.normalizeName(name));
+					SimpleLogger.instance.info("Removed subclass: " + Utils.normalizeName(name));
 					return true;  // удаляем, если родитель удалён
 				}
 			}
@@ -101,7 +101,7 @@ public final class AnnotationProccessor {
 			String iFace = it.next();
 			if(deletedIfaces.contains(iFace)) {
 				it.remove();
-				CodeRemover.LOG.info(String.format("Removed interface usage %s in %s", iFace, clazz.name));
+				SimpleLogger.instance.info(String.format("Removed interface usage %s in %s", iFace, clazz.name));
 			}
 		}
 	}
@@ -138,7 +138,7 @@ public final class AnnotationProccessor {
 				}
 			}
 
-			CodeRemover.LOG.info(String.format("Changed superclass for %s: %s -> %s", Utils.normalizeName(clazz.name), Utils.normalizeName(oldSuper), Utils.normalizeName(superName)));
+			SimpleLogger.instance.info(String.format("Changed superclass for %s: %s -> %s", Utils.normalizeName(clazz.name), Utils.normalizeName(oldSuper), Utils.normalizeName(superName)));
 		}
 	}
 
@@ -166,7 +166,7 @@ public final class AnnotationProccessor {
 			if(checkRemovable(field.invisibleAnnotations, true)) {
 				deletedFields.add(field.name + DATA_SEPARATOR + field.desc);
 				it.remove();
-				CodeRemover.LOG.info("Removed field: " + Utils.normalizeName(clazz.name) + "." + field.name);
+				SimpleLogger.instance.info("Removed field: " + Utils.normalizeName(clazz.name) + "." + field.name);
 			}
 		}
 	}
@@ -185,7 +185,7 @@ public final class AnnotationProccessor {
 				this.checkConstructor(clazz, method);
 			} else if(checkRemovable(method.invisibleAnnotations, true)) {
 				it.remove();
-				CodeRemover.LOG.info("Removed method: " + Utils.normalizeName(clazz.name) + "." + method.name + method.desc);
+				SimpleLogger.instance.info("Removed method: " + Utils.normalizeName(clazz.name) + "." + method.name + method.desc);
 			}
 		}
 	}
@@ -229,7 +229,7 @@ public final class AnnotationProccessor {
 						itr.set(new InsnNode(Opcodes.POP)); // для переменной
 						if(!isStatic) itr.add(new InsnNode(Opcodes.POP)); // для this
 					}
-					CodeRemover.LOG.info("Removed field '" + faccess.name + "' usage in: " + Utils.normalizeName(clazz.name) + "." + method.name + method.desc);
+					SimpleLogger.instance.info("Removed field '" + faccess.name + "' usage in: " + Utils.normalizeName(clazz.name) + "." + method.name + method.desc);
 				}
 			}
 		}
