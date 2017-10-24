@@ -210,7 +210,7 @@ public final class AnnotationProccessor {
 					AbstractInsnNode valueLoadInsn = insn.getPrevious();
 					if(valueLoadInsn != null) {
 						canRemovePrevious = PRIMITIVE_OPCODES.contains(valueLoadInsn.getOpcode());
-						if(!isStatic) {
+						if(!isStatic && canRemovePrevious) { // Поиск инструкции this для удаления
 							AbstractInsnNode aload = valueLoadInsn.getPrevious();
 							removeAloadThis = (aload != null && aload.getOpcode() == Opcodes.ALOAD && ((VarInsnNode)aload).var == 0);
 							if(!removeAloadThis) throw new InternalError("Can't find 'aload_0'");
