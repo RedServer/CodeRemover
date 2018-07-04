@@ -1,11 +1,13 @@
 package ru.redserver.coderemover.io;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -21,9 +23,9 @@ public final class JarManager {
 
 	private static final Set<String> dirs = new LinkedHashSet<>();
 
-	public static JarContents loadClassesFromJar(File jar) throws IOException {
+	public static JarContents loadClassesFromJar(Path path) throws IOException {
 		JarContents classCollection = new JarContents();
-		try (JarInputStream jarInputStream = new JarInputStream(new FileInputStream(jar), false)) {
+		try (JarInputStream jarInputStream = new JarInputStream(new BufferedInputStream(Files.newInputStream(path, StandardOpenOption.READ)), false)) {
 			JarEntry entry;
 			while((entry = jarInputStream.getNextJarEntry()) != null) {
 				if(entry.isDirectory()) continue;
@@ -55,9 +57,9 @@ public final class JarManager {
 		return temp.toByteArray();
 	}
 
-	public static void writeClasssesToJar(File jar, JarContents classCollection) throws IOException {
+	public static void writeClasssesToJar(Path path, JarContents classCollection) throws IOException {
 		dirs.clear();
-		try (JarOutputStream jarOutputStream = new JarOutputStream(new FileOutputStream(jar))) {
+		try (JarOutputStream jarOutputStream = new JarOutputStream(new BufferedOutputStream(Files.newOutputStream(path, StandardOpenOption.WRITE, StandardOpenOption.CREATE)))) {
 			if(classCollection.manifest != null) {
 				addDirectories(JarFile.MANIFEST_NAME);
 				jarOutputStream.putNextEntry(new JarEntry(JarFile.MANIFEST_NAME));

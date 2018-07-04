@@ -1,7 +1,11 @@
 package ru.redserver.coderemover;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.List;
 import ru.redserver.coderemover.io.JarContents;
-import java.io.File;
 import java.util.logging.Level;
 import ru.redserver.coderemover.io.JarManager;
 
@@ -17,19 +21,20 @@ public final class CodeRemover {
 	public void run(String args[]) {
 		Timer timer = new Timer();
 		int readTime = 0, applyTime = 0, writeTime = 0;
+		List<String> argsList = Arrays.asList(args);
 
 		// Запуск программы
 		try {
 			// Проверяем входные данные
-			if(args.length < 2) throw new IllegalArgumentException("Too small arguments: <input file> <output file>");
-			File inputFile = new File(args[0]);
-			if(!inputFile.exists() || !inputFile.isFile()) throw new IllegalArgumentException("File doesn't exists: " + inputFile);
+			if(argsList.size() < 2) throw new IllegalArgumentException("Too small arguments: <input file> <output file>");
+			Path inputFile = Paths.get(argsList.get(0));
+			if(!Files.isRegularFile(inputFile)) throw new IllegalArgumentException("File doesn't exists: " + inputFile);
 
-			File outputFile = new File(args[1]);
+			Path outputFile = Paths.get(argsList.get(1));
 
 			if(DEBUG_MODE) {
-				SimpleLogger.instance.log(Level.INFO, "Input file: {0}", inputFile.getAbsolutePath());
-				SimpleLogger.instance.log(Level.INFO, "Output file: {0}", outputFile.getAbsolutePath());
+				SimpleLogger.instance.log(Level.INFO, "Input file: {0}", inputFile.toAbsolutePath());
+				SimpleLogger.instance.log(Level.INFO, "Output file: {0}", outputFile.toAbsolutePath());
 			}
 
 			// Загружаем Jar файл
