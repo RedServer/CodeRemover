@@ -59,7 +59,7 @@ public final class JarManager {
 
 	public static void writeClasssesToJar(Path path, JarContents classCollection) throws IOException {
 		dirs.clear();
-		try (JarOutputStream jarOutputStream = new JarOutputStream(new BufferedOutputStream(Files.newOutputStream(path, StandardOpenOption.WRITE, StandardOpenOption.CREATE)))) {
+		try (JarOutputStream jarOutputStream = new JarOutputStream(new BufferedOutputStream(Files.newOutputStream(path, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)))) {
 			if(classCollection.manifest != null) {
 				addDirectories(JarFile.MANIFEST_NAME);
 				jarOutputStream.putNextEntry(new JarEntry(JarFile.MANIFEST_NAME));
