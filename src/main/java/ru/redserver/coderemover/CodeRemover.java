@@ -15,7 +15,7 @@ import ru.redserver.coderemover.io.JarManager;
  */
 public final class CodeRemover {
 
-	public static final String VERSION = "1.6";
+	public static final String VERSION = "1.7";
 	public static final boolean DEBUG_MODE = false; // Включает более подробные логи
 
 	public void run(String args[]) {
@@ -28,9 +28,9 @@ public final class CodeRemover {
 			// Проверяем входные данные
 			if(argsList.size() < 2) throw new IllegalArgumentException("Too small arguments: <input file> <output file>");
 			Path inputFile = Paths.get(argsList.get(0));
-			if(!Files.isRegularFile(inputFile)) throw new IllegalArgumentException("File doesn't exists: " + inputFile);
-
 			Path outputFile = Paths.get(argsList.get(1));
+			boolean removeOnly = argsList.contains("--remove-only"); // Режим удаления классов без применения исправлений
+			if(!Files.isRegularFile(inputFile)) throw new IllegalArgumentException("File doesn't exists: " + inputFile);
 
 			if(DEBUG_MODE) {
 				SimpleLogger.instance.log(Level.INFO, "Input file: {0}", inputFile.toAbsolutePath());
@@ -40,12 +40,13 @@ public final class CodeRemover {
 			// Загружаем Jar файл
 			JarContents contents = JarManager.loadClassesFromJar(inputFile);
 			SimpleLogger.instance.log(Level.INFO, "Loaded {0} classes and {1} resources.", new Object[]{contents.classes.size(), contents.resources.size()});
+			if(removeOnly) SimpleLogger.instance.info("Unsing remove only mode.");
 
 			readTime += timer.flip();
 
 			AnnotationProccessor processor = new AnnotationProccessor();
 			processor.removeClasses(contents);
-			processor.processClasses(contents);
+			processor.processClasses(contents, !removeOnly);
 
 			applyTime += timer.flip();
 			JarManager.writeClasssesToJar(outputFile, contents);

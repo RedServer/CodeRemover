@@ -80,11 +80,13 @@ public final class AnnotationProccessor {
 		});
 	}
 
-	public void processClasses(JarContents contents) {
+	public void processClasses(JarContents contents, boolean applyFixes) {
 		for(ClassNode node : contents.classes.values()) {
 			deletedFields.clear();
-			checkInterfaces(node);
-			checkSuperclass(node);
+			if(applyFixes) {
+				checkInterfaces(node);
+				checkSuperclass(node);
+			}
 			checkFields(node);
 			checkMethods(node);
 		}
