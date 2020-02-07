@@ -15,8 +15,7 @@ import ru.redserver.coderemover.io.JarManager;
  */
 public final class CodeRemover {
 
-	public static final String VERSION = "1.7";
-	public static final boolean DEBUG_MODE = false; // Включает более подробные логи
+	public static boolean DEBUG_MODE = Boolean.parseBoolean(System.getProperty("coderemover.debug", "false")); // Включает более подробные логи
 
 	public void run(String args[]) {
 		Timer timer = new Timer();
@@ -32,14 +31,9 @@ public final class CodeRemover {
 			boolean removeOnly = argsList.contains("--remove-only"); // Режим удаления классов без применения исправлений
 			if(!Files.isRegularFile(inputFile)) throw new IllegalArgumentException("File doesn't exists: " + inputFile);
 
-			if(DEBUG_MODE) {
-				SimpleLogger.instance.log(Level.INFO, "Input file: {0}", inputFile.toAbsolutePath());
-				SimpleLogger.instance.log(Level.INFO, "Output file: {0}", outputFile.toAbsolutePath());
-			}
-
 			// Загружаем Jar файл
 			JarContents contents = JarManager.loadClassesFromJar(inputFile);
-			SimpleLogger.instance.log(Level.INFO, "Loaded {0} classes and {1} resources.", new Object[]{contents.classes.size(), contents.resources.size()});
+			SimpleLogger.instance.log(Level.FINE, "Loaded {0} classes and {1} resources.", new Object[]{contents.classes.size(), contents.resources.size()});
 			if(removeOnly) SimpleLogger.instance.info("Unsing remove only mode.");
 
 			readTime += timer.flip();
@@ -52,11 +46,7 @@ public final class CodeRemover {
 			JarManager.writeClasssesToJar(outputFile, contents);
 			writeTime += timer.flip();
 
-			if(DEBUG_MODE) {
-				SimpleLogger.instance.log(Level.INFO, "Code Remover завершил работу за {0}ms (read {1}ms, apply {2}ms, write {3}ms).", new Object[]{readTime + applyTime + writeTime, readTime, applyTime, writeTime});
-			} else {
-				SimpleLogger.instance.log(Level.INFO, "Task done in {0}ms.", new Object[]{readTime + applyTime + writeTime});
-			}
+			SimpleLogger.instance.log(Level.FINE, "Task done in {0}ms (read {1}ms, apply {2}ms, write {3}ms).", new Object[]{readTime + applyTime + writeTime, readTime, applyTime, writeTime});
 		} catch (Exception ex) {
 			SimpleLogger.instance.log(Level.SEVERE, "An error occurred", ex);
 			System.exit(1);

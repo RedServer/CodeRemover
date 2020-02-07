@@ -20,7 +20,7 @@ public final class SimpleLogger {
 		instance = Logger.getLogger("CodeRemoved");
 
 		// Конфигурация Logger
-		instance.setLevel(Level.ALL);
+		instance.setLevel(CodeRemover.DEBUG_MODE ? Level.ALL : Level.INFO);
 		instance.setUseParentHandlers(false);
 		instance.addHandler(new ConsoleHandler());
 	}
@@ -29,7 +29,6 @@ public final class SimpleLogger {
 
 		public ConsoleHandler() {
 			setFormatter(new LoggerFormatter());
-			setLevel(Level.FINER);
 		}
 
 		@Override
